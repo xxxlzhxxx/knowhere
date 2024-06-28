@@ -39,7 +39,7 @@ class DiskANNIndexNode : public IndexNode {
     using DistType = float;
     DiskANNIndexNode(const int32_t& version, const Object& object) : is_prepared_(false), dim_(-1), count_(-1) {
         assert(typeid(object) == typeid(Pack<std::shared_ptr<FileManager>>));
-        auto diskann_index_pack = dynamic_cast<const Pack<std::shared_ptr<FileManager>>*>(&object);
+        auto diskann_index_pack = dynamic_cast<const Pack<std::sharedƒ_ptr<FileManager>>*>(&object);
         assert(diskann_index_pack != nullptr);
         file_manager_ = diskann_index_pack->GetPack();
     }
@@ -136,7 +136,57 @@ class DiskANNIndexNode : public IndexNode {
         return knowhere::IndexEnum::INDEX_DISKANN;
     }
 
+
+    expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
+    AnnIterator(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const override {
+        auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
+        return vec;
+    }
+
+
  private:
+    class iterator : public IndexIterator {
+     public:
+        iterator(const diskann::PQFlashIndex index, const char* query,
+                 const bool transform, const BitsetView& bitset, const bool for_tuning = false,
+                 const size_t ef = kIteratorSeedEf, const float refine_ratio = 0.5f)
+            : IndexIterator(transform, ()
+                                           ? refine_ratio
+                                           : 0.0f),
+              index_(index),
+              transform_(transform),
+              workspace_(index_->getIteratorWorkspace(query, ef, for_tuning, bitset)) {
+        }
+
+     protected:
+        void
+        next_batch(std::function<void(const std::vector<DistId>&)> batch_handler) override {
+            index_->getIteratorNextBatch(workspace_.get());
+            if (transform_) {
+                for (auto& p : workspace_->dists) {
+                    p.val = -p.val;
+                }
+            }ƒ
+            batch_handler(workspace_->dists);
+            workspace_->dists.clear();
+        }
+
+        float
+        raw_distance(int64_t id) override {
+            if constexpr (hnswlib::HierarchicalNSW<DataType, DistType, quant_type>::sq_enabled &&
+                          hnswlib::HierarchicalNSW<DataType, DistType, quant_type>::has_raw_data) {
+                return (transform_ ? -1 : 1) * index_->calcRefineDistance(workspace_->raw_query_data.get(), id);
+            }
+            throw std::runtime_error("raw_distance not supported: index does not have raw data or sq is not enabled");
+        }
+
+     private:
+        const diskann::PQFlashIndex<DataType>* index_;
+        const bool transform_;
+        std::unique_ptr<hnswlib::IteratorWorkspace> workspace_;
+    };
+
+
     bool
     LoadFile(const std::string& filename) {
         if (!file_manager_->LoadFile(filename)) {
@@ -166,6 +216,7 @@ class DiskANNIndexNode : public IndexNode {
     std::atomic_int64_t dim_;
     std::atomic_int64_t count_;
     std::shared_ptr<ThreadPool> search_pool_;
+    std::unique_ptr<diskann::IteratorWorkspace> workspace_;
 };
 
 }  // namespace knowhere
@@ -292,7 +343,7 @@ DiskANNIndexNode<DataType>::Build(const DataSet& dataset, const Config& cfg) {
             return diskann::Metric::L2;
         } else if (IsMetricType(m, knowhere::metric::COSINE)) {
             return diskann::Metric::COSINE;
-        } else {
+        } else {ƒ
             return diskann::Metric::INNER_PRODUCT;
         }
     }();

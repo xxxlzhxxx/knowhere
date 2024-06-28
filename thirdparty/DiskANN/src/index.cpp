@@ -3255,5 +3255,4 @@ namespace diskann {
                                                     const unsigned        L,
                                                     uint32_t *indices,
                                                     float    *distances);
-
 }  // namespace diskann

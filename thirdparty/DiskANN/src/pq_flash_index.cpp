@@ -1056,6 +1056,7 @@ namespace diskann {
     auto vec_hash = knowhere::hash_vec(query_float, data_dim);
     _u32 best_medoid = 0;
     // for tuning, do not use cache
+    // lzh::找到起点
     if (for_tuning || !lru_cache.try_get(vec_hash, best_medoid)) {
       float best_dist = (std::numeric_limits<float>::max)();
       std::vector<SimpleNeighbor> medoid_dists;
@@ -1085,6 +1086,8 @@ namespace diskann {
     unsigned num_ios = 0;
     unsigned k = 0;
 
+
+    // lzh::通过alpha判断这个节点要不要加入
     float                 accumulative_alpha = 0;
     std::vector<unsigned> filtered_nbrs;
     filtered_nbrs.reserve(this->max_degree);
@@ -1110,6 +1113,8 @@ namespace diskann {
       return {filtered_nbrs.size(), filtered_nbrs.data()};
     };
 
+
+    // lzh::主循环
     while (k < cur_list_size) {
       auto nk = cur_list_size;
       // clear iteration state
@@ -1121,6 +1126,9 @@ namespace diskann {
       // find new beam
       _u32 marker = k;
       _u32 num_seen = 0;
+
+      // lzh::把所有retset中带flag的放入frontier或者cached_nhoods
+      // frontier/cached nhoods相当于candidate list
       while (marker < cur_list_size && frontier.size() < beam_width &&
              num_seen < beam_width) {
         if (retset[marker].flag) {
@@ -1128,6 +1136,7 @@ namespace diskann {
           {
             std::shared_lock<std::shared_mutex> lock(this->cache_mtx);
             auto iter = nhood_cache.find(retset[marker].id);
+            // lzh::判断其是否在cache里
             if (iter != nhood_cache.end()) {
               cached_nhoods.push_back(
                   std::make_pair(retset[marker].id, iter->second));
@@ -1139,6 +1148,7 @@ namespace diskann {
             }
           }
           retset[marker].flag = false;
+          // 说明这个node被visited了
           {
             std::shared_lock<std::shared_mutex> lock(
                 this->node_visit_counter_mtx);
@@ -1147,6 +1157,7 @@ namespace diskann {
             }
           }
           if (!bitset_view.empty() && bitset_view.test(retset[marker].id)) {
+            // 被干掉掉的节点，从retset中去除
             std::memmove(&retset[marker], &retset[marker + 1],
                          (cur_list_size - marker - 1) * sizeof(Neighbor));
             cur_list_size--;
@@ -1159,6 +1170,7 @@ namespace diskann {
       }
 
       // read nhoods of frontier ids
+      // lzh::把frontier中的节点从磁盘读到内存，每次读一块
       if (!frontier.empty()) {
         if (stats != nullptr)
           stats->n_hops++;
@@ -1185,9 +1197,11 @@ namespace diskann {
         }
       }
 
+
       auto process_node = [&](T *node_fp_coords_copy, auto node_id, auto n_nbr,
                               auto *nbrs) {
         if (bitset_view.empty() || !bitset_view.test(node_id)) {
+          // lzh::如果没有被filter掉，找到距离q最近的node
           float cur_expanded_dist;
           if (!use_disk_index_pq) {
             cur_expanded_dist = dist_cmp_wrap(query, node_fp_coords_copy,
@@ -1201,18 +1215,23 @@ namespace diskann {
               cur_expanded_dist = disk_pq_table.l2_distance(
                   query_float, (_u8 *) node_fp_coords_copy);
           }
+
+          // lzh::以上比较了query和这个node的距离，然后放到了res集合里
           full_retset.push_back(
               Neighbor((unsigned) node_id, cur_expanded_dist, true));
 
+          
           // add top candidate info into feder result
           if (feder != nullptr) {
             feder->visit_info_.AddTopCandidateInfo(node_id, cur_expanded_dist);
             feder->id_set_.insert(node_id);
           }
         }
+        // lzh::筛选出该node可以作为候选的neighbor
         auto [nnbrs, node_nbrs] = filter_nbrs(n_nbr, nbrs);
 
         // compute node_nbrs <-> query dists in PQ space
+        // lzh::算邻居的距离
         cpu_timer.reset();
         compute_dists(node_nbrs, nnbrs, dist_scratch);
         if (stats != nullptr) {
@@ -1221,7 +1240,10 @@ namespace diskann {
         }
 
         cpu_timer.reset();
+
+
         // process prefetched nhood
+        // lzh::比较邻居与retset
         for (_u64 m = 0; m < nnbrs; ++m) {
           unsigned id = node_nbrs[m];
 
@@ -1625,6 +1647,37 @@ namespace diskann {
       this->state_controller->cond.wait(guard);
     }
   }
+
+  template<typename T>
+  void PQFlashIndex<T>::void getIteratorNextBatch(IteratorWorkspace* workspace, size_t res_size, const knowhere::feder::hnsw::FederResultUniq& feder_result = nullptr)const {
+    return;
+  }
+
+  template<typename T>
+  void PQFlashIndex<T>::virtual std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(const void*, const size_t, 
+                                              const bool, const knowhere::BitsetView&) const {
+    auto accumulative_alpha = (bitset.count() >= (cur_element_count * kHnswSearchKnnBFFilterThreshold))
+                                  ? std::numeric_limits<float>::max()
+                                  : 0.0f;
+    std::unique_ptr<int8_t[]> query_data_copy = nullptr;
+    query_data_copy = std::make_unique<int8_t[]>(data_size_);
+    std::memcpy(query_data_copy.get(), query_data, data_size_);
+    if constexpr (knowhere::KnowhereFloatTypeCheck<data_t>::value) {
+        if (metric_type_ == Metric::COSINE) {
+            knowhere::NormalizeVec((data_t*)query_data_copy.get(), *(size_t*)dist_func_param_);
+        }
+    }
+
+    std::unique_ptr<int8_t[]> query_data_sq = nullptr;
+    if constexpr (sq_enabled) {
+        query_data_sq = std::make_unique<int8_t[]>(*(size_t*)dist_func_param_);
+        encodeSQuant((data_t*)query_data_copy.get(), query_data_sq.get());
+    }
+    return std::make_unique<IteratorWorkspace>(std::move(query_data_sq), max_elements_, ef, 
+                                              for_tuning, std::move(query_data_copy), bitset, accumulative_alpha);
+  }
+
+
 
   // knowhere not support uint8/int8 diskann
   // template class PQFlashIndex<_u8>;
