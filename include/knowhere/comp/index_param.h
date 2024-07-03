@@ -147,7 +147,6 @@ constexpr const char* DROP_RATIO_SEARCH = "drop_ratio_search";
 
 
 
-
 }  // namespace indexparam
 
 using MetricType = std::string;
