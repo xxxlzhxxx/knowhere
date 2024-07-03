@@ -1599,8 +1599,7 @@ namespace diskann {
 
   template<typename T>
   void PQFlashIndex<T>::getIteratorNextBatch(
-      IteratorWorkspace *workspace, size_t res_size,
-      const knowhere::feder::hnsw::FederResultUniq &feder_result) const {
+      IteratorWorkspace *workspace, size_t res_size) const {
       return;
   }
 

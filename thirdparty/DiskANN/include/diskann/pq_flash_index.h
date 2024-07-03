@@ -93,26 +93,26 @@ namespace diskann {
     //    param->ef_ = 0;
     //    param->for_tuning = for_tuning;
     //}
-    const void* query_data;
+    //const void* query_data;
 
-    // NEVER ACCESS THIS DIRECTLY! USE query_data instead.
-    std::unique_ptr<int8_t[]> query_data_sq;
+    //// NEVER ACCESS THIS DIRECTLY! USE query_data instead.
+    //std::unique_ptr<int8_t[]> query_data_sq;
 
-    bool initial_search_done = false;
-    // TODO test for memory usage of this heap and add a metric monitoring it.
-    IteratorMinHeap to_visit;
-    // Since iterators do not occupy a thread during the entire lifecycle of an
-    // iteration request, we cannot use the visited list in the shared visited list pool,
-    // thus creating a new visited list for every new iteration request.
-    std::vector<bool> visited;
-    std::vector<knowhere::DistId> dists;
-    const size_t ef;
-    std::unique_ptr<SearchParam> param;
-    // though named raw_query_vector, it is normalized for cosine metric. used
-    // only for refinement when quantization is enabled.
-    std::unique_ptr<int8_t[]> raw_query_data;
-    const knowhere::BitsetView bitset;
-    float accumulative_alpha;
+    //bool initial_search_done = false;
+    //// TODO test for memory usage of this heap and add a metric monitoring it.
+    //IteratorMinHeap to_visit;
+    //// Since iterators do not occupy a thread during the entire lifecycle of an
+    //// iteration request, we cannot use the visited list in the shared visited list pool,
+    //// thus creating a new visited list for every new iteration request.
+    //std::vector<bool> visited;
+    //std::vector<knowhere::DistId> dists;
+    //const size_t ef;
+    //std::unique_ptr<SearchParam> param;
+    //// though named raw_query_vector, it is normalized for cosine metric. used
+    //// only for refinement when quantization is enabled.
+    //std::unique_ptr<int8_t[]> raw_query_data;
+    //const knowhere::BitsetView bitset;
+    //float accumulative_alpha;
   };
 
 
@@ -172,7 +172,7 @@ namespace diskann {
 
     diskann::Metric get_metric() const noexcept;
 
-    void getIteratorNextBatch(IteratorWorkspace* workspace, size_t res_size, const knowhere::feder::hnsw::FederResultUniq& feder_result = nullptr) const;
+    void getIteratorNextBatch(IteratorWorkspace* workspace, size_t res_size) const;
 
     virtual std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(const void*, const size_t, const bool, const knowhere::BitsetView&) const;
 
