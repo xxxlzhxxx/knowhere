@@ -39,7 +39,7 @@ class DiskANNIndexNode : public IndexNode {
     using DistType = float;
     DiskANNIndexNode(const int32_t& version, const Object& object) : is_prepared_(false), dim_(-1), count_(-1) {
         assert(typeid(object) == typeid(Pack<std::shared_ptr<FileManager>>));
-        auto diskann_index_pack = dynamic_cast<const Pack<std::sharedƒ_ptr<FileManager>>*>(&object);
+        auto diskann_index_pack = dynamic_cast<const Pack<std::shared_ptr<FileManager>>*>(&object);
         assert(diskann_index_pack != nullptr);
         file_manager_ = diskann_index_pack->GetPack();
     }
@@ -139,7 +139,7 @@ class DiskANNIndexNode : public IndexNode {
 
     expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
     AnnIterator(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const override {
-        auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
+        auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(1, nullptr);
         return vec;
     }
 
@@ -330,7 +330,7 @@ DiskANNIndexNode<DataType>::Build(const DataSet& dataset, const Config& cfg) {
             return diskann::Metric::L2;
         } else if (IsMetricType(m, knowhere::metric::COSINE)) {
             return diskann::Metric::COSINE;
-        } else {ƒ
+        } else {
             return diskann::Metric::INNER_PRODUCT;
         }
     }();
