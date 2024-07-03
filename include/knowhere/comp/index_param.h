@@ -141,6 +141,13 @@ constexpr const char* OVERVIEW_LEVELS = "overview_levels";
 // Sparse Params
 constexpr const char* DROP_RATIO_BUILD = "drop_ratio_build";
 constexpr const char* DROP_RATIO_SEARCH = "drop_ratio_search";
+
+// DISKANN Params
+constexpr const char* 
+
+
+
+
 }  // namespace indexparam
 
 using MetricType = std::string;

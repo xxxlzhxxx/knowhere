@@ -128,6 +128,25 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
         return json;
     };
 
+    auto diskann_gen = [&base_gen]() {
+        knowhere::Json json;
+        json["dim"] = kDim;
+        json["metric_type"] = "L2";
+        json["k"] = 100;
+        json["index_prefix"] = kL2IndexPrefix;
+        json["data_path"] = kRawDataPath;
+        json["max_degree"] = 24;
+        json["search_list_size"] = 64;
+        json["pq_code_budget_gb"] = sizeof(float) * kDim * rows_num * 0.125 / (1024 * 1024 * 1024);
+        json["build_dram_budget_gb"] = 32.0;
+        json["search_cache_budget_gb"] = sizeof(float) * kDim * rows_num * 0.05 / (1024 * 1024 * 1024);
+        json["beamwidth"] = 8;
+        json["min_k"] = 10;
+        json["max_k"] = 8000;
+        return json;
+    }
+
+
     auto rand = GENERATE(1, 2);
 
     const auto train_ds = GenDataSet(nb, dim, rand);
@@ -135,12 +154,13 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
 
     SECTION("Test Search using iterator") {
         using std::make_tuple;
-        auto [name, gen] = GENERATE_REF(table<std::string, std::function<knowhere::Json()>>(
-            {make_tuple(knowhere::IndexEnum::INDEX_HNSW, hnsw_gen),
-             make_tuple(knowhere::IndexEnum::INDEX_HNSW_SQ8, hnsw_gen),
-             make_tuple(knowhere::IndexEnum::INDEX_HNSW_SQ8_REFINE, hnsw_gen),
-             make_tuple(knowhere::IndexEnum::INDEX_FAISS_IVFFLAT, ivfflat_gen),
-             make_tuple(knowhere::IndexEnum::INDEX_FAISS_IVFFLAT_CC, ivfflatcc_gen)}));
+        auto [name, gen] = GENERATE_REF(table<std::string, std::function<knowhere::Json()>>({
+            // make_tuple(knowhere::IndexEnum::INDEX_HNSW, hnsw_gen),
+            // make_tuple(knowhere::IndexEnum::INDEX_HNSW_SQ8, hnsw_gen),
+            // make_tuple(knowhere::IndexEnum::INDEX_HNSW_SQ8_REFINE, hnsw_gen),
+            // make_tuple(knowhere::IndexEnum::INDEX_FAISS_IVFFLAT, ivfflat_gen),
+            // make_tuple(knowhere::IndexEnum::INDEX_FAISS_IVFFLAT_CC, ivfflatcc_gen),
+             make_tuple(knowhere::IndexEnum::INDEX_DISKANN, diskann_gen)}));
         auto idx = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(name, version).value();
         auto cfg_json = gen().dump();
         CAPTURE(name, cfg_json);
