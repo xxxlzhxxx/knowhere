@@ -147,43 +147,30 @@ class DiskANNIndexNode : public IndexNode {
  private:
     class iterator : public IndexIterator {
      public:
-        iterator(const diskann::PQFlashIndex index, const char* query,
-                 const bool transform, const BitsetView& bitset, const bool for_tuning = false,
-                 const size_t ef = kIteratorSeedEf, const float refine_ratio = 0.5f)
-            : IndexIterator(transform, ()
-                                           ? refine_ratio
-                                           : 0.0f),
-              index_(index),
-              transform_(transform),
-              workspace_(index_->getIteratorWorkspace(query, ef, for_tuning, bitset)) {
-        }
+        iterator() {}
 
      protected:
         void
         next_batch(std::function<void(const std::vector<DistId>&)> batch_handler) override {
             index_->getIteratorNextBatch(workspace_.get());
-            if (transform_) {
-                for (auto& p : workspace_->dists) {
-                    p.val = -p.val;
-                }
-            }ƒ
-            batch_handler(workspace_->dists);
-            workspace_->dists.clear();
+            //if (transform_) {
+            //    for (auto& p : workspace_->dists) {
+            //        p.val = -p.val;
+            //    }
+            //}
+            //batch_handler(workspace_->dists);
+            //workspace_->dists.clear();
         }
 
         float
         raw_distance(int64_t id) override {
-            if constexpr (hnswlib::HierarchicalNSW<DataType, DistType, quant_type>::sq_enabled &&
-                          hnswlib::HierarchicalNSW<DataType, DistType, quant_type>::has_raw_data) {
-                return (transform_ ? -1 : 1) * index_->calcRefineDistance(workspace_->raw_query_data.get(), id);
-            }
-            throw std::runtime_error("raw_distance not supported: index does not have raw data or sq is not enabled");
+           return 1;
         }
 
      private:
         const diskann::PQFlashIndex<DataType>* index_;
         const bool transform_;
-        std::unique_ptr<hnswlib::IteratorWorkspace> workspace_;
+        std::unique_ptr<diskann::IteratorWorkspace> workspace_;
     };
 
 
