@@ -27,6 +27,7 @@
 #include "tsl/robin_set.h"
 
 #include "diskann/linux_aligned_file_reader.h"
+#include "pq_flash_index.h"
 
 #define READ_U64(stream, val) stream.read((char *) &val, sizeof(_u64))
 #define READ_U32(stream, val) stream.read((char *) &val, sizeof(_u32))
@@ -1597,6 +1598,39 @@ namespace diskann {
   }
 
   template<typename T>
+  void PQFlashIndex<T>::getIteratorNextBatch(
+      IteratorWorkspace *workspace, size_t res_size,
+      const knowhere::feder::hnsw::FederResultUniq &feder_result) const {
+      return;
+  }
+
+  template<typename T>
+  std::unique_ptr<IteratorWorkspace> PQFlashIndex<T>::getIteratorWorkspace(
+      const void *, const size_t, const bool,
+      const knowhere::BitsetView &) const {
+    //auto accumulative_alpha = (bitset.count() >= (cur_element_count * kHnswSearchKnnBFFilterThreshold))
+    //                      ? std::numeric_limits<float>::max()
+    //                      : 0.0f;
+    //std::unique_ptr<int8_t[]> query_data_copy = nullptr;
+    //query_data_copy = std::make_unique<int8_t[]>(data_size_);
+    //std::memcpy(query_data_copy.get(), query_data, data_size_);
+    //if constexpr (knowhere::KnowhereFloatTypeCheck<data_t>::value) {
+    //    if (metric_type_ == Metric::COSINE) {
+    //        knowhere::NormalizeVec((data_t*)query_data_copy.get(), *(size_t*)dist_func_param_);
+    //    }
+    //}
+
+    //std::unique_ptr<int8_t[]> query_data_sq = nullptr;
+    //if constexpr (sq_enabled) {
+    //    query_data_sq = std::make_unique<int8_t[]>(*(size_t*)dist_func_param_);
+    //    encodeSQuant((data_t*)query_data_copy.get(), query_data_sq.get());
+    //}
+    //return std::make_unique<IteratorWorkspace>(std::move(query_data_sq), max_elements_, ef, 
+    //                                          for_tuning, std::move(query_data_copy), bitset, accumulative_alpha);
+    return std::unique_ptr<IteratorWorkspace>();
+  }
+
+  template<typename T>
   _u64 PQFlashIndex<T>::cal_size() {
     _u64 index_mem_size = 0;
     index_mem_size += sizeof(*this);
@@ -1648,36 +1682,7 @@ namespace diskann {
     }
   }
 
-  template<typename T>
-  void PQFlashIndex<T>::void getIteratorNextBatch(IteratorWorkspace* workspace, size_t res_size, const knowhere::feder::hnsw::FederResultUniq& feder_result = nullptr)const {
-    return;
-  }
-
-  template<typename T>
-  void PQFlashIndex<T>::virtual std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(const void*, const size_t, 
-                                              const bool, const knowhere::BitsetView&) const {
-    auto accumulative_alpha = (bitset.count() >= (cur_element_count * kHnswSearchKnnBFFilterThreshold))
-                                  ? std::numeric_limits<float>::max()
-                                  : 0.0f;
-    std::unique_ptr<int8_t[]> query_data_copy = nullptr;
-    query_data_copy = std::make_unique<int8_t[]>(data_size_);
-    std::memcpy(query_data_copy.get(), query_data, data_size_);
-    if constexpr (knowhere::KnowhereFloatTypeCheck<data_t>::value) {
-        if (metric_type_ == Metric::COSINE) {
-            knowhere::NormalizeVec((data_t*)query_data_copy.get(), *(size_t*)dist_func_param_);
-        }
-    }
-
-    std::unique_ptr<int8_t[]> query_data_sq = nullptr;
-    if constexpr (sq_enabled) {
-        query_data_sq = std::make_unique<int8_t[]>(*(size_t*)dist_func_param_);
-        encodeSQuant((data_t*)query_data_copy.get(), query_data_sq.get());
-    }
-    return std::make_unique<IteratorWorkspace>(std::move(query_data_sq), max_elements_, ef, 
-                                              for_tuning, std::move(query_data_copy), bitset, accumulative_alpha);
-  }
-
-
+ 
 
   // knowhere not support uint8/int8 diskann
   // template class PQFlashIndex<_u8>;

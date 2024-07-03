@@ -77,6 +77,48 @@ namespace diskann {
     QueryScratch<T> scratch;
   };
 
+
+  struct IteratorWorkspace {
+    //IteratorWorkspace(std::unique_ptr<int8_t[]> query_data_sq, const size_t num_elements, const size_t ef,
+    //                  const bool for_tuning, std::unique_ptr<int8_t[]> raw_query_data,
+    //                  const knowhere::BitsetView& bitset, float accumulative_alpha)
+    //    : query_data(query_data_sq ? (const void*)(query_data_sq.get()) : (const void*)(raw_query_data.get())),
+    //      query_data_sq(std::move(query_data_sq)),
+    //      visited(num_elements),
+    //      ef(ef),
+    //      param(std::make_unique<SearchParam>()),
+    //      raw_query_data(std::move(raw_query_data)),
+    //      bitset(bitset),
+    //      accumulative_alpha(accumulative_alpha) {
+    //    param->ef_ = 0;
+    //    param->for_tuning = for_tuning;
+    //}
+    const void* query_data;
+
+    // NEVER ACCESS THIS DIRECTLY! USE query_data instead.
+    std::unique_ptr<int8_t[]> query_data_sq;
+
+    bool initial_search_done = false;
+    // TODO test for memory usage of this heap and add a metric monitoring it.
+    IteratorMinHeap to_visit;
+    // Since iterators do not occupy a thread during the entire lifecycle of an
+    // iteration request, we cannot use the visited list in the shared visited list pool,
+    // thus creating a new visited list for every new iteration request.
+    std::vector<bool> visited;
+    std::vector<knowhere::DistId> dists;
+    const size_t ef;
+    std::unique_ptr<SearchParam> param;
+    // though named raw_query_vector, it is normalized for cosine metric. used
+    // only for refinement when quantization is enabled.
+    std::unique_ptr<int8_t[]> raw_query_data;
+    const knowhere::BitsetView bitset;
+    float accumulative_alpha;
+  };
+
+
+
+  
+
   template<typename T>
   class PQFlashIndex {
    public:
@@ -296,42 +338,7 @@ namespace diskann {
 
   typedef std::priority_queue<Neighbor, std::vector<Neighbor>, std::greater<Neighbor>> IteratorMinHeap;
 
-  struct IteratorWorkspace {
-    IteratorWorkspace(std::unique_ptr<int8_t[]> query_data_sq, const size_t num_elements, const size_t ef,
-                      const bool for_tuning, std::unique_ptr<int8_t[]> raw_query_data,
-                      const knowhere::BitsetView& bitset, float accumulative_alpha)
-        : query_data(query_data_sq ? (const void*)(query_data_sq.get()) : (const void*)(raw_query_data.get())),
-          query_data_sq(std::move(query_data_sq)),
-          visited(num_elements),
-          ef(ef),
-          param(std::make_unique<SearchParam>()),
-          raw_query_data(std::move(raw_query_data)),
-          bitset(bitset),
-          accumulative_alpha(accumulative_alpha) {
-        param->ef_ = 0;
-        param->for_tuning = for_tuning;
-    }
-    const void* query_data;
 
-    // NEVER ACCESS THIS DIRECTLY! USE query_data instead.
-    std::unique_ptr<int8_t[]> query_data_sq;
-
-    bool initial_search_done = false;
-    // TODO test for memory usage of this heap and add a metric monitoring it.
-    IteratorMinHeap to_visit;
-    // Since iterators do not occupy a thread during the entire lifecycle of an
-    // iteration request, we cannot use the visited list in the shared visited list pool,
-    // thus creating a new visited list for every new iteration request.
-    std::vector<bool> visited;
-    std::vector<knowhere::DistId> dists;
-    const size_t ef;
-    std::unique_ptr<SearchParam> param;
-    // though named raw_query_vector, it is normalized for cosine metric. used
-    // only for refinement when quantization is enabled.
-    std::unique_ptr<int8_t[]> raw_query_data;
-    const knowhere::BitsetView bitset;
-    float accumulative_alpha;
-  };
 
 
 
