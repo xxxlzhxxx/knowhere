@@ -130,21 +130,21 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
 
     auto diskann_gen = [&base_gen]() {
         knowhere::Json json;
-        json["dim"] = kDim;
+        json["dim"] = dim;
         json["metric_type"] = "L2";
         json["k"] = 100;
-        json["index_prefix"] = kL2IndexPrefix;
-        json["data_path"] = kRawDataPath;
+        //json["index_prefix"] = kL2IndexPrefix;
+        //json["data_path"] = kRawDataPath;
         json["max_degree"] = 24;
         json["search_list_size"] = 64;
-        json["pq_code_budget_gb"] = sizeof(float) * kDim * rows_num * 0.125 / (1024 * 1024 * 1024);
+        json["pq_code_budget_gb"] = sizeof(float) * dim * rows_num * 0.125 / (1024 * 1024 * 1024);
         json["build_dram_budget_gb"] = 32.0;
-        json["search_cache_budget_gb"] = sizeof(float) * kDim * rows_num * 0.05 / (1024 * 1024 * 1024);
+        json["search_cache_budget_gb"] = sizeof(float) * dim * rows_num * 0.05 / (1024 * 1024 * 1024);
         json["beamwidth"] = 8;
         json["min_k"] = 10;
         json["max_k"] = 8000;
         return json;
-    }
+    };
 
 
     auto rand = GENERATE(1, 2);
