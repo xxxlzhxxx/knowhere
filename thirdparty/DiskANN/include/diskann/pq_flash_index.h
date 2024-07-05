@@ -78,43 +78,107 @@ namespace diskann {
   };
 
 
-  struct IteratorWorkspace {
-    //IteratorWorkspace(std::unique_ptr<int8_t[]> query_data_sq, const size_t num_elements, const size_t ef,
-    //                  const bool for_tuning, std::unique_ptr<int8_t[]> raw_query_data,
-    //                  const knowhere::BitsetView& bitset, float accumulative_alpha)
-    //    : query_data(query_data_sq ? (const void*)(query_data_sq.get()) : (const void*)(raw_query_data.get())),
-    //      query_data_sq(std::move(query_data_sq)),
-    //      visited(num_elements),
-    //      ef(ef),
-    //      param(std::make_unique<SearchParam>()),
-    //      raw_query_data(std::move(raw_query_data)),
-    //      bitset(bitset),
-    //      accumulative_alpha(accumulative_alpha) {
-    //    param->ef_ = 0;
-    //    param->for_tuning = for_tuning;
-    //}
-    //const void* query_data;
+  class SortedVector {
+  public:
+      explicit SortedVector(size_t max_size) : max_size(max_size) {
+        data.reserve(max_size * 2)
+      }
 
-    //// NEVER ACCESS THIS DIRECTLY! USE query_data instead.
-    //std::unique_ptr<int8_t[]> query_data_sq;
+      void push(const Neighbor& neighbor) {
+          // 使用二分查找找到插入位置
+          auto it = std::lower_bound(data.begin(), data.end(), neighbor);
+          data.insert(it, neighbor);
+          if (data.size() > max_size) {
+              data.pop_back();
+          }
+      }
 
-    //bool initial_search_done = false;
-    //// TODO test for memory usage of this heap and add a metric monitoring it.
-    //IteratorMinHeap to_visit;
-    //// Since iterators do not occupy a thread during the entire lifecycle of an
-    //// iteration request, we cannot use the visited list in the shared visited list pool,
-    //// thus creating a new visited list for every new iteration request.
-    //std::vector<bool> visited;
-    //std::vector<knowhere::DistId> dists;
-    //const size_t ef;
-    //std::unique_ptr<SearchParam> param;
-    //// though named raw_query_vector, it is normalized for cosine metric. used
-    //// only for refinement when quantization is enabled.
-    //std::unique_ptr<int8_t[]> raw_query_data;
-    //const knowhere::BitsetView bitset;
-    //float accumulative_alpha;
+      Neighbor pop() {
+          if (data.empty()) {
+              throw std::out_of_range("Pop from empty vector");
+          }
+          Neighbor minElem = data.front();
+          data.erase(data.begin());
+          return minElem;
+      }
+
+      const Neighbor& front() const {
+          if (data.empty()) {
+              throw std::out_of_range("Accessing front of empty vector");
+          }
+          return data.front();
+      }
+
+      const Neighbor& back() const {
+          if (data.empty()) {
+              throw std::out_of_range("Accessing back of empty vector");
+          }
+          return data.back();
+      }
+
+      bool empty() const {
+          return data.empty();
+      }
+
+      size_t size() const {
+          return data.size();
+      }
+
+  private:
+      size_t max_size;
+      std::vector<Neighbor> data;
   };
 
+struct config {
+    // 构造函数
+    config(const void* query_data, const _u64 ef, const _u64 k, const bool for_tun, const _s64* idx, 
+           const knowhere::BitsetView& bt, float* distances, 
+           const _u64 b_width, const float filter_ratio_in, const bool use_reorder_data)
+        : query_data(query_data),
+          k_search(k),
+          l_search(ef),
+          indices(idx),
+          distances(distances),
+          beam_width(b_width),
+          use_reorder_data(use_reorder_data), // 使用传入的值
+          bitset(bt),
+          filter_ratio_in(filter_ratio_in), // 使用传入的值
+          for_tuning(for_tun) {}
+
+    bool initial_search_done = false;
+    const void* query_data;
+    const _u64 k_search; // top k
+    const _u64 l_search; // ef
+    const _s64* indices; // 索引数组
+    float* distances;    // 距离数组
+    const _u64 beam_width;
+    const bool use_reorder_data; // 是否使用重排数据
+    knowhere::BitsetView bitset;
+    const float filter_ratio_in;
+    const bool for_tuning;
+};
+
+struct IteratorWorkspace {
+    IteratorWorkspace(const void* query_data, const _u64 ef, const _u64 k, const bool for_tun, const _s64* idx, 
+                      const knowhere::BitsetView& bt, float* distances, const _u64 b_width, float alpha, 
+                      const float filter_ratio_in, const bool use_reorder_data)
+        : config(query_data, ef, k, for_tun, idx, bt, distances, b_width, filter_ratio_in, use_reorder_data),
+          accumulative_alpha(alpha), res(ef) {}
+
+    float accumulative_alpha;
+    config config; // 变量名首字母改为小写
+    SortedVector res;
+    std::vector<bool> visited;
+    std::priority_queue<diskann::Neighbor, std::vector<diskann::Neighbor>> candidate;
+    std::vector<knowhere::DistId> dists; // 统一接口
+
+    struct cmp {
+        bool operator()(const knowhere::DistId& d1, const knowhere::DistId& d2) {
+            return d1.second > d2.second;
+        }
+    };
+    std::priority_queue<knowhere::DistId, std::vector<knowhere::DistId>, cmp> refined_dists;  // refined dist
+};
 
 
   

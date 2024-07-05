@@ -1600,34 +1600,92 @@ namespace diskann {
   template<typename T>
   void PQFlashIndex<T>::getIteratorNextBatch(
       IteratorWorkspace *workspace, size_t res_size) const {
-      return;
+      std::vector<unsigned> frontier;
+      frontier.reserve(2 * beam_width);
+      std::vector<std::pair<unsigned, char *>> frontier_nhoods;
+      frontier_nhoods.reserve(2 * beam_width);
+      std::vector<AlignedRead> frontier_read_reqs;
+      frontier_read_reqs.reserve(2 * beam_width);
+      std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>> cached_nhoods;
+      cached_nhoods.reserve(2 * beam_width);
+
+      while(workspace->res.back().distance < workspace->candidate.top().distance){
+        auto top = workspace->candidate.top();
+        
+        auto iter = nhood_cache.find(top.id);
+        if (iter != nhood_cache.end()){
+          cached_nhoods.push_back(std::make_pair(top.id, iter->second));
+        } else {
+          frontier.push_back(top.id);
+        }
+        // TODO::bitview相关，筛选
+
+        // TODO::read frontier to memory
+        if (!frontier.empty()){
+          for(_u64 i=0; i<frontier.size(); i++){
+            std::pair<_u32, char*> fnhood;
+            fnhood.first = id;
+          
+          }
+        }
+          
+        // process all nodes
+        auto process_node = [&](T *node_fp_coords_copy, auto node_id, auto n_nbr, auto *nbrs){};
+      
+        for (auto &cached_nhood : cached_nhoods) {
+          T *node_fp_coords_copy;
+          //{
+          //  std::shared_lock<std::shared_mutex> lock(this->cache_mtx);
+          //  auto global_cache_iter = coord_cache.find(cached_nhood.first);
+          //  node_fp_coords_copy = global_cache_iter->second;
+          //}
+          //process_node(node_fp_coords_copy, cached_nhood.first,
+          //            cached_nhood.second.first, cached_nhood.second.second);
+        }
+        
+        for (auto &frontier_nhood : frontier_nhoods) {
+          //char *node_disk_buf =
+          //    get_offset_to_node(frontier_nhood.second, frontier_nhood.first);
+          //unsigned *node_buf = OFFSET_TO_NODE_NHOOD(node_disk_buf);
+          //T        *node_fp_coords = OFFSET_TO_NODE_COORDS(node_disk_buf);
+          //T        *node_fp_coords_copy = data_buf;
+          //memcpy(node_fp_coords_copy, node_fp_coords, disk_bytes_per_point);
+          //process_node(node_fp_coords_copy, frontier_nhood.first, *node_buf,
+          //            node_buf + 1);
+        }
+        
+        if (workspace->res.back().dis < workspace->candidate.top().dis){
+          workspace->res.push(workspace->candidate.top());
+          workspace->candidate.pop();
+          break;
+        }
+      }
   }
 
   template<typename T>
   std::unique_ptr<IteratorWorkspace> PQFlashIndex<T>::getIteratorWorkspace(
-      const void *, const size_t, const bool,
-      const knowhere::BitsetView &) const {
-    //auto accumulative_alpha = (bitset.count() >= (cur_element_count * kHnswSearchKnnBFFilterThreshold))
-    //                      ? std::numeric_limits<float>::max()
-    //                      : 0.0f;
-    //std::unique_ptr<int8_t[]> query_data_copy = nullptr;
-    //query_data_copy = std::make_unique<int8_t[]>(data_size_);
-    //std::memcpy(query_data_copy.get(), query_data, data_size_);
-    //if constexpr (knowhere::KnowhereFloatTypeCheck<data_t>::value) {
-    //    if (metric_type_ == Metric::COSINE) {
-    //        knowhere::NormalizeVec((data_t*)query_data_copy.get(), *(size_t*)dist_func_param_);
-    //    }
-    //}
+      const T *query_data, const _u64 ef, const _u64 k, float *distances, const _u64 beam_width,
+      const bool for_tun, const knowhere::BitsetView &bitset) const {
 
-    //std::unique_ptr<int8_t[]> query_data_sq = nullptr;
-    //if constexpr (sq_enabled) {
-    //    query_data_sq = std::make_unique<int8_t[]>(*(size_t*)dist_func_param_);
-    //    encodeSQuant((data_t*)query_data_copy.get(), query_data_sq.get());
-    //}
-    //return std::make_unique<IteratorWorkspace>(std::move(query_data_sq), max_elements_, ef, 
-    //                                          for_tuning, std::move(query_data_copy), bitset, accumulative_alpha);
-    return std::unique_ptr<IteratorWorkspace>();
+    auto query_data_copy = std::make_unique<int8_t[]>(query_data);
+    std::unique_ptr<int8_t[]> query_data_sq;
+    std::unique_ptr<int8_t[]> raw_query_data;
+
+    
+    const u64* idx, 
+    const knowhere::BitsetView& bt;
+    const _u64 b_width;
+    float alpha = (bitset.count() >= (cur_element_count * kHnswSearchKnnBFFilterThreshold))
+                          ? std::numeric_limits<float>::max()
+                          : 0.0f;
+    const bool use_reorder_data; // 是否使用重排数据
+    const float filter_ratio_in;
+   
+    return std::make_unique<IteratorWorkspace>(query_data, ef, k, for_tun, idx, bt, 
+    distances, b_width, alpha, filter_ratio_in, use_reorder_data);
   }
+
+
 
   template<typename T>
   _u64 PQFlashIndex<T>::cal_size() {
