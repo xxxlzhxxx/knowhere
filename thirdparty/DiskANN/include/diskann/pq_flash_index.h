@@ -238,7 +238,12 @@ struct IteratorWorkspace {
 
     void getIteratorNextBatch(IteratorWorkspace* workspace, size_t res_size) const;
 
-    virtual std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(const void*, const size_t, const bool, const knowhere::BitsetView&) const;
+    
+    std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(
+    const T* query_data, const _u64 ef, const _u64 k, _s64* indices,
+    float* distances, const _u64 beam_width, const bool use_reorder_data, 
+    const float filter_ratio_in, const bool for_tun, const knowhere::BitsetView& bitset) const;
+
 
     _u64 cal_size();
 

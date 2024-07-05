@@ -27,6 +27,7 @@
 #include "tsl/robin_set.h"
 
 #include "diskann/linux_aligned_file_reader.h"
+#include "pq_flash_index.h"
 
 
 #define READ_U64(stream, val) stream.read((char *) &val, sizeof(_u64))
@@ -1664,27 +1665,19 @@ namespace diskann {
 
   template<typename T>
   std::unique_ptr<IteratorWorkspace> PQFlashIndex<T>::getIteratorWorkspace(
-      const T *query_data, const _u64 ef, const _u64 k, float *distances, const _u64 beam_width,
-      const bool for_tun, const knowhere::BitsetView &bitset) const {
+      const T *query_data, const _u64 ef, const _u64 k, _s64 *indices,
+      float *distances, const _u64 beam_width, const bool use_reorder_data,
+      const float filter_ratio_in, const bool for_tun,
+      const knowhere::BitsetView &bitset) const {
+        
 
-    auto query_data_copy = std::make_unique<int8_t[]>(query_data);
-    std::unique_ptr<int8_t[]> query_data_sq;
-    std::unique_ptr<int8_t[]> raw_query_data;
+    auto alpha = (bitset.count() >= (cur_element_count * kHnswSearchKnnBFFilterThreshold))
+                                      ? std::numeric_limits<float>::max()
+                                      : 0.0f;
 
-    
-    const u64* idx, 
-    const knowhere::BitsetView& bt;
-    const _u64 b_width;
-    float alpha = (bitset.count() >= (cur_element_count * kHnswSearchKnnBFFilterThreshold))
-                          ? std::numeric_limits<float>::max()
-                          : 0.0f;
-    const bool use_reorder_data; // 是否使用重排数据
-    const float filter_ratio_in;
-   
     return std::make_unique<IteratorWorkspace>(query_data, ef, k, for_tun, idx, bt, 
-    distances, b_width, alpha, filter_ratio_in, use_reorder_data);
+      distances, b_width, alpha, filter_ratio_in, use_reorder_data);
   }
-
 
 
   template<typename T>
