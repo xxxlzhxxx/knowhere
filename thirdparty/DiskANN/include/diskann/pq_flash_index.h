@@ -168,7 +168,7 @@ struct IteratorWorkspace {
     float accumulative_alpha;
     config config; // 变量名首字母改为小写
     SortedVector res;
-    std::vector<bool> visited;
+    tsl::robin_set<_u64> visited; 
     std::priority_queue<diskann::Neighbor, std::vector<diskann::Neighbor>> candidate;
     std::vector<knowhere::DistId> dists; // 统一接口
 
