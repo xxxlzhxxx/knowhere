@@ -1743,7 +1743,9 @@ namespace diskann {
 
           auto [nnbrs, node_nbrs] = filter_nbrs(n_nbr, nbrs);
           for (_u64 m = 0; m < nnbrs; ++m){
-            
+            float dist = dist_scratch[m];
+            Neighbor nn(id, dist, true);
+            workspace->candidate.push(nn);
           }
         }
 

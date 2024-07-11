@@ -273,31 +273,31 @@ class HnswIndexNode : public IndexNode {
     };
 
  public:
-    expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
-    AnnIterator(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const override {
+expected<std::vector<IndexNode::IteratorPtr>>
+    AnnIterator(const DataSetPtr dataset, const Config& cfg, const BitsetView& bitset) const override {
         if (!index_) {
             LOG_KNOWHERE_WARNING_ << "creating iterator on empty index";
-            return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(Status::empty_index,
-                                                                                    "index not loaded");
+            return expected<std::vector<IndexNode::IteratorPtr>>::Err(Status::empty_index, "index not loaded");
         }
-        auto nq = dataset.GetRows();
-        auto xq = dataset.GetTensor();
+        auto nq = dataset->GetRows();
+        auto xq = dataset->GetTensor();
 
         auto hnsw_cfg = static_cast<const HnswConfig&>(cfg);
         auto ef = hnsw_cfg.ef.value_or(kIteratorSeedEf);
 
         bool transform =
             (index_->metric_type_ == hnswlib::Metric::INNER_PRODUCT || index_->metric_type_ == hnswlib::Metric::COSINE);
-        auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
+        auto vec = std::vector<IndexNode::IteratorPtr>(nq, nullptr);
         std::vector<folly::Future<folly::Unit>> futs;
         futs.reserve(nq);
         for (int i = 0; i < nq; ++i) {
             futs.emplace_back(search_pool_->push([&, i]() {
                 auto single_query = (const char*)xq + i * index_->data_size_;
-                auto it = new iterator(this->index_, single_query, transform, bitset, hnsw_cfg.for_tuning.value(), ef,
-                                       hnsw_cfg.iterator_refine_ratio.value());
+                auto it =
+                    std::make_shared<iterator>(this->index_, single_query, transform, bitset,
+                                               hnsw_cfg.for_tuning.value(), ef, hnsw_cfg.iterator_refine_ratio.value());
                 it->initialize();
-                vec[i].reset(it);
+                vec[i] = it;
             }));
         }
         // wait for initial search(in top layers and search for ef in base layer) to finish

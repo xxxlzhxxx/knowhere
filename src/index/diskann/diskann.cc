@@ -139,7 +139,34 @@ class DiskANNIndexNode : public IndexNode {
 
     expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
     AnnIterator(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const override {
-        auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(1, nullptr);
+        if (pq_flash_index_ == nullptr){
+            LOG_KNOWHERE_WARNING_ << "creating iterator on empty index";
+            return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(Status::empty_index,                                                                        "index not loaded");
+        }
+        auto nq = dataset->GetRows();
+        auto xq = dataset->GetTensor();
+        auto diskann_cfg = static_cast<const DiskANNConfig&>(cfg);
+        auto ef = diskann_cfg.search_list_size;
+        auto k = diskann_cfg.k;
+        float* distances;
+
+        std::vector<folly::Future<folly::Unit>> futs;
+        futs.reserve(nq);
+        auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
+
+
+        for (int i=0; i<nq; i++){
+            futs.emplace_back(search_pool_->push([&, i]() {
+                auto single_query = (const char*)xq + i * index_->data_size_;
+                auto it =
+                    std::make_shared<iterator>(true, single_query, ef, k, this->pq_flash_index_,
+                    distances, diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning);
+                it->initialize();
+                vec[i] = it;
+            }));
+        }
+
+        WaitAllSuccess(futs);
         return vec;
     }
 
@@ -147,19 +174,27 @@ class DiskANNIndexNode : public IndexNode {
  private:
     class iterator : public IndexIterator {
      public:
-        iterator() {}
+        iterator(const bool transform, const T *query_data, const _u64 ef, const _u64 k, _s64 *indices,
+      float *distances, const _u64 beam_width, const bool use_reorder_data,
+      const float filter_ratio_in, const bool for_tun,
+      const knowhere::BitsetView &bitset):
+      IndexIterator(transform),
+      index_(pq_flash_index_),
+      transform_(transform),
+      workspace_(index_->getIteratorWorkspace(query_data, ef, k, indices, 
+      distances, beam_width, use_reorder_data, bitset)) {}
 
      protected:
         void
         next_batch(std::function<void(const std::vector<DistId>&)> batch_handler) override {
             index_->getIteratorNextBatch(workspace_.get());
-            //if (transform_) {
-            //    for (auto& p : workspace_->dists) {
-            //        p.val = -p.val;
-            //    }
-            //}
-            //batch_handler(workspace_->dists);
-            //workspace_->dists.clear();
+            if (transform_) {
+                for (auto& p : workspace_->dists) {
+                    p.val = -p.val;
+                }
+            }
+            batch_handler(workspace_->dists);
+            workspace_->dists.clear();
         }
 
         float
