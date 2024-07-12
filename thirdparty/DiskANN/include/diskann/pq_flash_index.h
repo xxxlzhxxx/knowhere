@@ -162,7 +162,7 @@ struct IteratorWorkspace {
     IteratorWorkspace(const void* query_data, const _u64 ef, const _u64 k, const bool for_tun, const _s64* idx, 
                       const knowhere::BitsetView& bt, float* distances, const _u64 b_width, float alpha, 
                       const float filter_ratio_in, const bool use_reorder_data)
-        : config(query_data, ef, k, for_tun, idx, bt, distances, b_width, filter_ratio_in, use_reorder_data),
+        : Config(query_data, ef, k, for_tun, idx, bt, distances, b_width, filter_ratio_in, use_reorder_data),
           accumulative_alpha(alpha), res(ef) {}
 
     float accumulative_alpha;
