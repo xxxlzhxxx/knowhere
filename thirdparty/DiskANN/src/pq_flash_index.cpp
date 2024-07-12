@@ -1631,14 +1631,14 @@ namespace diskann {
     Timer io_timer, query_timer;
     // cleared every iteration
     std::vector<unsigned> frontier;
-    frontier.reserve(2 * beam_width);
+    frontier.reserve(2 * workspace->Config.beam_width);
     std::vector<std::pair<unsigned, char *>> frontier_nhoods;
-    frontier_nhoods.reserve(2 * beam_width);
+    frontier_nhoods.reserve(2 * workspace->Config.beam_width);
     std::vector<AlignedRead> frontier_read_reqs;
-    frontier_read_reqs.reserve(2 * beam_width);
+    frontier_read_reqs.reserve(2 * workspace->Config.beam_width);
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
         cached_nhoods;
-    cached_nhoods.reserve(2 * beam_width);
+    cached_nhoods.reserve(2 * workspace->Config.beam_width);
 
     // query <-> PQ chunk centers distances
     float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
