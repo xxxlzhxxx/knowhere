@@ -1598,7 +1598,7 @@ namespace diskann {
   void PQFlashIndex<T>::getIteratorNextBatch(IteratorWorkspace *workspace,
                                              size_t res_size) const {
     // copy the initialization of cached_beam_search
-    if (beam_width > MAX_N_SECTOR_READS)
+    if (workspace->Config.beam_width > MAX_N_SECTOR_READS)
       throw ANNException("Beamwidth can not be higher than MAX_N_SECTOR_READS",
                          -1, __FUNCSIG__, __FILE__, __LINE__);
 
@@ -1607,7 +1607,7 @@ namespace diskann {
       this->thread_data.wait_for_push_notify();
       data = this->thread_data.pop();
     }
-    auto query_norm_opt = init_thread_data(data, query1);
+    auto query_norm_opt = init_thread_data(data, workspace->Config.query_data);
     if (!query_norm_opt.has_value()) {
       // return an empty answer when calcu a zero point
       this->thread_data.push(data);
@@ -1664,7 +1664,7 @@ namespace diskann {
       // Initial Search, find the entry point.
       _u32 best_medoid = 0;
       // TODO::这个判断条件含义
-      if (for_tuning || !lru_cache.try_get(vec_hash, best_medoid)) {
+      if (workspace->Config.for_tuning || !lru_cache.try_get(vec_hash, best_medoid)) {
         float best_dist = (std::numeric_limits<float>::max)();
         std::vector<SimpleNeighbor> medoid_dists;
         for (_u64 cur_m = 0; cur_m < num_medoids; cur_m++) {
