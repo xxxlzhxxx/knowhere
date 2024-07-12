@@ -81,7 +81,7 @@ namespace diskann {
   class SortedVector {
   public:
       explicit SortedVector(size_t max_size) : max_size(max_size) {
-        data.reserve(max_size * 2)
+        data.reserve(max_size * 2);
       }
 
       void push(const Neighbor& neighbor) {
@@ -166,7 +166,7 @@ struct IteratorWorkspace {
           accumulative_alpha(alpha), res(ef) {}
 
     float accumulative_alpha;
-    config config; // 变量名首字母改为小写
+    config Config; 
     SortedVector res;
     tsl::robin_set<_u64> visited; 
     std::priority_queue<diskann::Neighbor, std::vector<diskann::Neighbor>> candidate;
@@ -174,7 +174,7 @@ struct IteratorWorkspace {
 
     struct cmp {
         bool operator()(const knowhere::DistId& d1, const knowhere::DistId& d2) {
-            return d1.second > d2.second;
+            return d1.val > d2.val;
         }
     };
     std::priority_queue<knowhere::DistId, std::vector<knowhere::DistId>, cmp> refined_dists;  // refined dist
