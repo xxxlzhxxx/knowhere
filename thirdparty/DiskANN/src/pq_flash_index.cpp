@@ -1596,7 +1596,7 @@ namespace diskann {
 
   template<typename T>
   void PQFlashIndex<T>::getIteratorNextBatch(IteratorWorkspace *workspace,
-                                             size_t res_size) const {
+                                             size_t res_size){
     // copy the initialization of cached_beam_search
     if (workspace->Config.beam_width > MAX_N_SECTOR_READS)
       throw ANNException("Beamwidth can not be higher than MAX_N_SECTOR_READS",
@@ -1631,14 +1631,14 @@ namespace diskann {
     Timer io_timer, query_timer;
     // cleared every iteration
     std::vector<unsigned> frontier;
-    frontier.reserve(2 * beam_width);
+    frontier.reserve(2 * workspace->Config.beam_width);
     std::vector<std::pair<unsigned, char *>> frontier_nhoods;
-    frontier_nhoods.reserve(2 * beam_width);
+    frontier_nhoods.reserve(2 * workspace->Config.beam_width);
     std::vector<AlignedRead> frontier_read_reqs;
-    frontier_read_reqs.reserve(2 * beam_width);
+    frontier_read_reqs.reserve(2 * workspace->Config.beam_width);
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
         cached_nhoods;
-    cached_nhoods.reserve(2 * beam_width);
+    cached_nhoods.reserve(2 * workspace->Config.beam_width);
 
     // query <-> PQ chunk centers distances
     float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
@@ -1660,7 +1660,7 @@ namespace diskann {
 
     workspace->visited = *(query_scratch->visited);
 
-    if (!workspace->config.initial_search_done) {
+    if (!workspace->Config.initial_search_done) {
       // Initial Search, find the entry point.
       _u32 best_medoid = 0;
       // TODO::这个判断条件含义
@@ -1681,11 +1681,11 @@ namespace diskann {
       compute_dists(&best_medoid, 1, dist_scratch);
       workspace->visited.insert(best_medoid);
       workspace->candidate.push({best_medoid, true, dist_scratch});
-      workspace->config.initial_search_done = true;
+      workspace->Config.initial_search_done = true;
       return;
     }
 
-    while (workspace->res.size() < workspace->config.l_search || 
+    while (workspace->res.size() < workspace->Config.l_search || 
       workspace->res.back().distance > workspace->candidate.top().distance) {
       // 终止条件：res没满 ｜｜ res最差比candidate最好要差
       auto top = workspace->candidate.top();
@@ -1721,7 +1721,7 @@ namespace diskann {
       // process all nodes
       auto process_node = [&](T *node_fp_coords_copy, auto node_id, auto n_nbr,
                               auto *nbrs) {
-        if (bitset_view.empty() || !bitset_view.test(node_id)) {
+        if (workspace->Config.bitset.empty() || !workspace->Config.bitset.test(node_id)) {
           // lzh::如果没有被filter掉，找到距离q最近的node
           float cur_expanded_dist;
           if (!use_disk_index_pq) {
@@ -1787,7 +1787,7 @@ namespace diskann {
       const T *query_data, const _u64 ef, const _u64 k, _s64 *indices,
       float *distances, const _u64 beam_width, const bool use_reorder_data,
       const float filter_ratio_in, const bool for_tun,
-      const knowhere::BitsetView &bitset) const {
+      const knowhere::BitsetView &bitset) {
     float alpha = (bitset.count() >=
                    (cur_element_count * kHnswSearchKnnBFFilterThreshold))
                       ? std::numeric_limits<float>::max()
