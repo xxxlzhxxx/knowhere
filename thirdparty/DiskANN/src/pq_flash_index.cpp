@@ -1660,7 +1660,7 @@ namespace diskann {
 
     workspace->visited = *(query_scratch->visited);
 
-    if (!workspace->config.initial_search_done) {
+    if (!workspace->Config.initial_search_done) {
       // Initial Search, find the entry point.
       _u32 best_medoid = 0;
       // TODO::这个判断条件含义
@@ -1681,11 +1681,11 @@ namespace diskann {
       compute_dists(&best_medoid, 1, dist_scratch);
       workspace->visited.insert(best_medoid);
       workspace->candidate.push({best_medoid, true, dist_scratch});
-      workspace->config.initial_search_done = true;
+      workspace->Config.initial_search_done = true;
       return;
     }
 
-    while (workspace->res.size() < workspace->config.l_search || 
+    while (workspace->res.size() < workspace->Config.l_search || 
       workspace->res.back().distance > workspace->candidate.top().distance) {
       // 终止条件：res没满 ｜｜ res最差比candidate最好要差
       auto top = workspace->candidate.top();
@@ -1721,7 +1721,7 @@ namespace diskann {
       // process all nodes
       auto process_node = [&](T *node_fp_coords_copy, auto node_id, auto n_nbr,
                               auto *nbrs) {
-        if (bitset_view.empty() || !bitset_view.test(node_id)) {
+        if (workspace->Config.bitset.empty() || !workspace->Config.bitset.test(node_id)) {
           // lzh::如果没有被filter掉，找到距离q最近的node
           float cur_expanded_dist;
           if (!use_disk_index_pq) {
