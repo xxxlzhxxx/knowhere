@@ -1640,6 +1640,9 @@ namespace diskann {
         cached_nhoods;
     cached_nhoods.reserve(2 * workspace->Config.beam_width);
 
+    
+
+
     // query <-> PQ chunk centers distances
     float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
     pq_table.populate_chunk_distances(query_float, pq_dists);
@@ -1663,6 +1666,7 @@ namespace diskann {
     if (!workspace->Config.initial_search_done) {
       // Initial Search, find the entry point.
       _u32 best_medoid = 0;
+      auto vec_hash = knowhere::hash_vec(query_float, data_dim);
       // TODO::这个判断条件含义
       if (workspace->Config.for_tuning || !lru_cache.try_get(vec_hash, best_medoid)) {
         float best_dist = (std::numeric_limits<float>::max)();
@@ -1737,12 +1741,19 @@ namespace diskann {
                   query_float, (_u8 *) node_fp_coords_copy);
           }
 
+
+
+        
           // lzh::以上比较了query和这个node的距离，然后放到了res集合里
           workspace->refined_dists.push_back(
               Neighbor((unsigned) node_id, cur_expanded_dist));
 
           auto [nnbrs, node_nbrs] = filter_nbrs(n_nbr, nbrs);
+          compute_dists(node_nbrs, nnbrs, dist_scratch);
+
+
           for (_u64 m = 0; m < nnbrs; ++m){
+            unsigned id = node_nbrs[m];
             float dist = dist_scratch[m];
             Neighbor nn(id, dist, true);
             workspace->candidate.push(nn);
