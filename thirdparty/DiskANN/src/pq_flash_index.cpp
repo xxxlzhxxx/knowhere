@@ -1596,7 +1596,7 @@ namespace diskann {
 
   template<typename T>
   void PQFlashIndex<T>::getIteratorNextBatch(IteratorWorkspace *workspace,
-                                             size_t res_size) const {
+                                             size_t res_size){
     // copy the initialization of cached_beam_search
     if (workspace->Config.beam_width > MAX_N_SECTOR_READS)
       throw ANNException("Beamwidth can not be higher than MAX_N_SECTOR_READS",
@@ -1787,7 +1787,7 @@ namespace diskann {
       const T *query_data, const _u64 ef, const _u64 k, _s64 *indices,
       float *distances, const _u64 beam_width, const bool use_reorder_data,
       const float filter_ratio_in, const bool for_tun,
-      const knowhere::BitsetView &bitset) const {
+      const knowhere::BitsetView &bitset) {
     float alpha = (bitset.count() >=
                    (cur_element_count * kHnswSearchKnnBFFilterThreshold))
                       ? std::numeric_limits<float>::max()
