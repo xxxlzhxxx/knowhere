@@ -1648,16 +1648,16 @@ namespace diskann {
       filtered_nbrs.clear();
       for (_u64 m = 0; m < nnbrs; ++m) {
         unsigned id = node_nbrs[m];
-        if (visited.find(id) != visited.end()) {
+        if (workspace->visited.find(id) != workspace->visited.end()) {
           continue;
         }
-        visited.insert(id);
-        if (!bitset_view.empty() && bitset_view.test(id)) {
-          accumulative_alpha += kAlpha;
-          if (accumulative_alpha < 1.0f) {
+        workspace->visited.insert(id);
+        if (!workspace->Config.bitset.empty() && workspace->Config.bitset.test(id)) {
+          workspace->accumulative_alpha += kAlpha;
+          if (workspace->accumulative_alpha < 1.0f) {
             continue;
           }
-          accumulative_alpha -= 1.0f;
+          workspace->accumulative_alpha -= 1.0f;
         }
         cmps++;
         filtered_nbrs.push_back(id);
