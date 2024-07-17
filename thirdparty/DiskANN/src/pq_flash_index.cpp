@@ -1641,7 +1641,29 @@ namespace diskann {
     cached_nhoods.reserve(2 * workspace->Config.beam_width);
 
     
-
+    std::vector<unsigned> filtered_nbrs;
+    filtered_nbrs.reserve(this->max_degree);
+    auto filter_nbrs = [&](_u64      nnbrs,
+                           unsigned *node_nbrs) -> std::pair<_u64, unsigned *> {
+      filtered_nbrs.clear();
+      for (_u64 m = 0; m < nnbrs; ++m) {
+        unsigned id = node_nbrs[m];
+        if (visited.find(id) != visited.end()) {
+          continue;
+        }
+        visited.insert(id);
+        if (!bitset_view.empty() && bitset_view.test(id)) {
+          accumulative_alpha += kAlpha;
+          if (accumulative_alpha < 1.0f) {
+            continue;
+          }
+          accumulative_alpha -= 1.0f;
+        }
+        cmps++;
+        filtered_nbrs.push_back(id);
+      }
+      return {filtered_nbrs.size(), filtered_nbrs.data()};
+    };
 
     // query <-> PQ chunk centers distances
     float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
@@ -1745,7 +1767,7 @@ namespace diskann {
 
         
           // lzh::以上比较了query和这个node的距离，然后放到了res集合里
-          workspace->refined_dists.push_back(
+          workspace->refined_dists.push(
               Neighbor((unsigned) node_id, cur_expanded_dist));
 
           auto [nnbrs, node_nbrs] = filter_nbrs(n_nbr, nbrs);
@@ -1787,7 +1809,7 @@ namespace diskann {
 
 
       if (workspace->res.empty() || 
-          workspace->res.back().dis < workspace->candidate.top().dis) {
+          workspace->res.back().distance < workspace->candidate.top().distance) {
         workspace->res.push(workspace->candidate.top());
       }
     }
@@ -1799,10 +1821,7 @@ namespace diskann {
       float *distances, const _u64 beam_width, const bool use_reorder_data,
       const float filter_ratio_in, const bool for_tun,
       const knowhere::BitsetView &bitset) {
-    float alpha = (bitset.count() >=
-                   (cur_element_count * kHnswSearchKnnBFFilterThreshold))
-                      ? std::numeric_limits<float>::max()
-                      : 0.0f;
+    float alpha = 0.0f;
 
     return std::make_unique<IteratorWorkspace>(
         query_data, ef, k, for_tun, indices, bitset, distances, beam_width,
