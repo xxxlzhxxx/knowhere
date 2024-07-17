@@ -43,16 +43,16 @@ class Benchmark_float_range_bitset : public Benchmark_knowhere, public ::testing
 
             for (auto nq : NQs_) {
                 auto ds_ptr = knowhere::GenDataSet(nq, dim_, xq_);
-                auto g_result = golden_index_.value().RangeSearch(*ds_ptr, conf, bitset);
+                auto g_result = golden_index_.value().RangeSearch(ds_ptr, conf, bitset);
                 auto g_ids = g_result.value()->GetIds();
                 auto g_lims = g_result.value()->GetLims();
-                CALC_TIME_SPAN(auto result = index_.value().RangeSearch(*ds_ptr, conf, bitset));
+                CALC_TIME_SPAN(auto result = index_.value().RangeSearch(ds_ptr, conf, bitset));
                 auto ids = result.value()->GetIds();
                 auto lims = result.value()->GetLims();
                 float recall = CalcRecall(g_ids, g_lims, ids, lims, nq);
                 float accuracy = CalcAccuracy(g_ids, g_lims, ids, lims, nq);
-                printf("  bitset_per = %3d%%, nq = %4d, elapse = %6.3fs, R@ = %.4f, A@ = %.4f\n", per, nq, t_diff,
-                       recall, accuracy);
+                printf("  bitset_per = %3d%%, nq = %4d, elapse = %6.3fs, R@ = %.4f, A@ = %.4f, L@ = %.2f\n", per, nq,
+                       t_diff, recall, accuracy, lims[nq] / (float)nq);
                 std::fflush(stdout);
             }
         }
@@ -74,16 +74,16 @@ class Benchmark_float_range_bitset : public Benchmark_knowhere, public ::testing
 
             for (auto nq : NQs_) {
                 auto ds_ptr = knowhere::GenDataSet(nq, dim_, xq_);
-                auto g_result = golden_index_.value().RangeSearch(*ds_ptr, conf, bitset);
+                auto g_result = golden_index_.value().RangeSearch(ds_ptr, conf, bitset);
                 auto g_ids = g_result.value()->GetIds();
                 auto g_lims = g_result.value()->GetLims();
-                CALC_TIME_SPAN(auto result = index_.value().RangeSearch(*ds_ptr, conf, bitset));
+                CALC_TIME_SPAN(auto result = index_.value().RangeSearch(ds_ptr, conf, bitset));
                 auto ids = result.value()->GetIds();
                 auto lims = result.value()->GetLims();
                 float recall = CalcRecall(g_ids, g_lims, ids, lims, nq);
                 float accuracy = CalcAccuracy(g_ids, g_lims, ids, lims, nq);
-                printf("  bitset_per = %3d%%, nq = %4d, elapse = %6.3fs, R@ = %.4f, A@ = %.4f\n", per, nq, t_diff,
-                       recall, accuracy);
+                printf("  bitset_per = %3d%%, nq = %4d, elapse = %6.3fs, R@ = %.4f, A@ = %.4f, L@ = %.2f\n", per, nq,
+                       t_diff, recall, accuracy, lims[nq] / (float)nq);
                 std::fflush(stdout);
             }
         }
@@ -105,16 +105,16 @@ class Benchmark_float_range_bitset : public Benchmark_knowhere, public ::testing
             knowhere::BitsetView bitset(bitset_data.data(), nb_);
             for (auto nq : NQs_) {
                 auto ds_ptr = knowhere::GenDataSet(nq, dim_, xq_);
-                auto g_result = golden_index_.value().RangeSearch(*ds_ptr, conf, bitset);
+                auto g_result = golden_index_.value().RangeSearch(ds_ptr, conf, bitset);
                 auto g_ids = g_result.value()->GetIds();
                 auto g_lims = g_result.value()->GetLims();
-                CALC_TIME_SPAN(auto result = index_.value().RangeSearch(*ds_ptr, conf, bitset));
+                CALC_TIME_SPAN(auto result = index_.value().RangeSearch(ds_ptr, conf, bitset));
                 auto ids = result.value()->GetIds();
                 auto lims = result.value()->GetLims();
                 float recall = CalcRecall(g_ids, g_lims, ids, lims, nq);
                 float accuracy = CalcAccuracy(g_ids, g_lims, ids, lims, nq);
-                printf("  bitset_per = %3d%%, nq = %4d, elapse = %6.3fs, R@ = %.4f, A@ = %.4f\n", per, nq, t_diff,
-                       recall, accuracy);
+                printf("  bitset_per = %3d%%, nq = %4d, elapse = %6.3fs, R@ = %.4f, A@ = %.4f, L@ = %.2f\n", per, nq,
+                       t_diff, recall, accuracy, lims[nq] / (float)nq);
                 std::fflush(stdout);
             }
         }
@@ -223,7 +223,12 @@ TEST_F(Benchmark_float_range_bitset, TEST_DISKANN) {
     index_ = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(index_type_, version, diskann_index_pack);
     printf("[%.3f s] Building all on %d vectors\n", get_time_diff(), nb_);
     knowhere::DataSetPtr ds_ptr = nullptr;
-    index_.value().Build(*ds_ptr, conf);
+    index_.value().Build(ds_ptr, conf);
+
+    knowhere::BinarySet binset;
+    index_.value().Serialize(binset);
+    index_.value().Deserialize(binset, conf);
+
     test_diskann(conf);
 }
 #endif

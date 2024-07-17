@@ -43,6 +43,11 @@ constexpr const char* INDEX_RAFT_IVFFLAT = "GPU_RAFT_IVF_FLAT";
 constexpr const char* INDEX_RAFT_IVFPQ = "GPU_RAFT_IVF_PQ";
 constexpr const char* INDEX_RAFT_CAGRA = "GPU_RAFT_CAGRA";
 
+constexpr const char* INDEX_GPU_BRUTEFORCE = "GPU_BRUTE_FORCE";
+constexpr const char* INDEX_GPU_IVFFLAT = "GPU_IVF_FLAT";
+constexpr const char* INDEX_GPU_IVFPQ = "GPU_IVF_PQ";
+constexpr const char* INDEX_GPU_CAGRA = "GPU_CAGRA";
+
 constexpr const char* INDEX_HNSW = "HNSW";
 constexpr const char* INDEX_HNSW_SQ8 = "HNSW_SQ8";
 constexpr const char* INDEX_HNSW_SQ8_REFINE = "HNSW_SQ8_REFINE";
@@ -71,6 +76,7 @@ constexpr const char* IDS = "ids";
 constexpr const char* DISTANCE = "distance";
 constexpr const char* LIMS = "lims";
 constexpr const char* TOPK = "k";
+constexpr const char* RANGE_SEARCH_K = "range_search_k";
 constexpr const char* RADIUS = "radius";
 constexpr const char* RANGE_FILTER = "range_filter";
 constexpr const char* INPUT_IDS = "input_ids";
@@ -86,6 +92,11 @@ constexpr const char* TRACE_FLAGS = "trace_flags";
 constexpr const char* MATERIALIZED_VIEW_SEARCH_INFO = "materialized_view_search_info";
 constexpr const char* MATERIALIZED_VIEW_OPT_FIELDS_PATH = "opt_fields_path";
 constexpr const char* MAX_EMPTY_RESULT_BUCKETS = "max_empty_result_buckets";
+constexpr const char* BM25_K1 = "bm25_k1";
+constexpr const char* BM25_B = "bm25_b";
+// average document length
+constexpr const char* BM25_AVGDL = "bm25_avgdl";
+constexpr const char* WAND_BM25_MAX_SCORE_RATIO = "wand_bm25_max_score_ratio";
 };  // namespace meta
 
 namespace indexparam {
@@ -131,6 +142,7 @@ constexpr const char* HASHMAP_MODE = "hashmap_mode";
 constexpr const char* HASHMAP_MIN_BITLEN = "hashmap_min_bitlen";
 constexpr const char* HASHMAP_MAX_FILL_RATE = "hashmap_max_fill_rate";
 constexpr const char* NN_DESCENT_NITER = "nn_descent_niter";
+constexpr const char* ADAPT_FOR_CPU = "adapt_for_cpu";
 
 // HNSW Params
 constexpr const char* EFCONSTRUCTION = "efConstruction";
@@ -159,6 +171,7 @@ constexpr const char* HAMMING = "HAMMING";
 constexpr const char* JACCARD = "JACCARD";
 constexpr const char* SUBSTRUCTURE = "SUBSTRUCTURE";
 constexpr const char* SUPERSTRUCTURE = "SUPERSTRUCTURE";
+constexpr const char* BM25 = "BM25";
 }  // namespace metric
 
 enum VecType {

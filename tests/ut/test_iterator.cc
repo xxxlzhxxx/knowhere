@@ -166,20 +166,20 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
         CAPTURE(name, cfg_json);
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
         REQUIRE(idx.Size() > 0);
         REQUIRE(idx.Count() == nb);
 
         knowhere::BinarySet bs;
         REQUIRE(idx.Serialize(bs) == knowhere::Status::success);
         REQUIRE(idx.Deserialize(bs) == knowhere::Status::success);
-        auto its = idx.AnnIterator(*query_ds, json, nullptr);
+        auto its = idx.AnnIterator(query_ds, json, nullptr);
         REQUIRE(its.has_value());
 
         // compare iterator_search results with normal ann search results
         // the iterator resutls should not be too bad.
         auto iterator_results = GetIteratorKNNResult(its.value(), topk);
-        auto search_results = idx.Search(*query_ds, json, nullptr);
+        auto search_results = idx.Search(query_ds, json, nullptr);
         REQUIRE(search_results.has_value());
         bool dist_less_better = knowhere::IsMetricType(metric, knowhere::metric::L2);
         float recall = GetKNNRelativeRecall(*search_results.value(), *iterator_results, dist_less_better);
@@ -199,7 +199,7 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
         CAPTURE(name, cfg_json);
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
 
         std::vector<std::function<std::vector<uint8_t>(size_t, size_t)>> gen_bitset_funcs = {
             GenerateBitsetWithFirstTbitsSet, GenerateBitsetWithRandomTbitsSet};
@@ -209,11 +209,11 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
                 auto bitset_data = gen_func(nb, percentage * nb);
                 knowhere::BitsetView bitset(bitset_data.data(), nb);
                 // Iterator doesn't have a fallback to bruteforce mechanism at high filter rate.
-                auto its = idx.AnnIterator(*query_ds, json, bitset);
+                auto its = idx.AnnIterator(query_ds, json, bitset);
                 REQUIRE(its.has_value());
 
                 auto iterator_results = GetIteratorKNNResult(its.value(), topk);
-                auto search_results = idx.Search(*query_ds, json, bitset);
+                auto search_results = idx.Search(query_ds, json, bitset);
                 REQUIRE(search_results.has_value());
                 bool dist_less_better = knowhere::IsMetricType(metric, knowhere::metric::L2);
                 float recall = GetKNNRelativeRecall(*search_results.value(), *iterator_results, dist_less_better);
@@ -235,7 +235,7 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
         CAPTURE(name, cfg_json);
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
 
         std::vector<std::function<std::vector<uint8_t>(size_t, size_t)>> gen_bitset_funcs = {
             GenerateBitsetWithFirstTbitsSet, GenerateBitsetWithRandomTbitsSet};
@@ -244,14 +244,14 @@ TEST_CASE("Test Iterator Mem Index With Float Vector", "[float metrics]") {
         for (const auto& gen_func : gen_bitset_funcs) {
             auto bitset_data = gen_func(nb, nb - filter_remaining);
             knowhere::BitsetView bitset(bitset_data.data(), nb);
-            auto its = idx.AnnIterator(*query_ds, json, bitset);
+            auto its = idx.AnnIterator(query_ds, json, bitset);
             REQUIRE(its.has_value());
             auto iterator_results = GetIteratorKNNResult(its.value(), topk);
             // after get those remaining points, iterator should return false for HasNext.
             for (const auto& it : its.value()) {
                 REQUIRE(!it->HasNext());
             }
-            auto search_results = idx.Search(*query_ds, json, bitset);
+            auto search_results = idx.Search(query_ds, json, bitset);
             REQUIRE(search_results.has_value());
             bool dist_less_better = knowhere::IsMetricType(metric, knowhere::metric::L2);
             float recall = GetKNNRelativeRecall(*search_results.value(), *iterator_results, dist_less_better);
@@ -304,17 +304,17 @@ TEST_CASE("Test Iterator IVFFlatCC With Newly Insert Vectors", "[float metrics] 
 
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
         REQUIRE(idx.Size() > 0);
 
         REQUIRE(idx.Count() == nb);
-        auto its_old = idx.AnnIterator(*query_ds, json, nullptr);
+        auto its_old = idx.AnnIterator(query_ds, json, nullptr);
         REQUIRE(its_old.has_value());
         auto& iters_old = its_old.value();
 
-        REQUIRE(idx.Add(*train_ds_new, json) == knowhere::Status::success);
+        REQUIRE(idx.Add(train_ds_new, json) == knowhere::Status::success);
         REQUIRE(idx.Count() == nb + nb_new);
-        auto its_new = idx.AnnIterator(*query_ds, json, nullptr);
+        auto its_new = idx.AnnIterator(query_ds, json, nullptr);
         REQUIRE(its_new.has_value());
         auto& iters_new = its_new.value();
 
@@ -386,15 +386,15 @@ TEST_CASE("Test Iterator Mem Index With Binary Metrics", "[binary metrics]") {
         CAPTURE(name, cfg_json);
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
         REQUIRE(idx.Size() > 0);
         REQUIRE(idx.Count() == nb);
 
-        auto its = idx.AnnIterator(*query_ds, json, nullptr);
+        auto its = idx.AnnIterator(query_ds, json, nullptr);
         REQUIRE(its.has_value());
 
         auto iterator_results = GetIteratorKNNResult(its.value(), topk);
-        auto search_results = idx.Search(*query_ds, json, nullptr);
+        auto search_results = idx.Search(query_ds, json, nullptr);
         REQUIRE(search_results.has_value());
         bool dist_less_better = knowhere::IsMetricType(metric, knowhere::metric::L2);
         float recall = GetKNNRelativeRecall(*search_results.value(), *iterator_results, dist_less_better);
@@ -449,7 +449,7 @@ TEST_CASE("Test Iterator BruteForce With Sparse Float Vector", "[IP metric]") {
     const int64_t nb = 1000, nq = 10;
     const int64_t dim = 4;
 
-    auto metric = knowhere::metric::IP;
+    auto metric = GENERATE(knowhere::metric::IP, knowhere::metric::BM25);
     auto version = GenTestVersionList();
 
     auto rand = GENERATE(1, 2, 3, 5);
@@ -459,6 +459,7 @@ TEST_CASE("Test Iterator BruteForce With Sparse Float Vector", "[IP metric]") {
 
     const knowhere::Json conf = {
         {knowhere::meta::METRIC_TYPE, metric}, {knowhere::meta::TOPK, nb},  // to return all vectors
+        {knowhere::meta::BM25_K1, 1.2},        {knowhere::meta::BM25_B, 0.75}, {knowhere::meta::BM25_AVGDL, 100},
     };
 
     SECTION("Test Iterator BruteForce") {

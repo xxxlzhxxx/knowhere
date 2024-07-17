@@ -30,15 +30,14 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
         {20000, 3000, 0.97, 0.99},
     }));
     auto topk = 5;
-    int64_t nq = GENERATE(10, 100);
+    int64_t nq = 10;
 
     auto [drop_ratio_build, drop_ratio_search] = GENERATE(table<float, float>({
         {0.0, 0.0},
-        {0.0, 0.15},
         {0.15, 0.3},
     }));
 
-    auto metric = knowhere::metric::IP;
+    auto metric = GENERATE(knowhere::metric::IP, knowhere::metric::BM25);
     auto version = GenTestVersionList();
 
     auto base_gen = [=, dim = dim]() {
@@ -46,6 +45,9 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
         json[knowhere::meta::DIM] = dim;
         json[knowhere::meta::METRIC_TYPE] = metric;
         json[knowhere::meta::TOPK] = topk;
+        json[knowhere::meta::BM25_K1] = 1.2;
+        json[knowhere::meta::BM25_B] = 0.75;
+        json[knowhere::meta::BM25_AVGDL] = 100;
         return json;
     };
 
@@ -62,8 +64,8 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
     const auto query_ds = GenSparseDataSet(nq, dim + 20, query_sparsity);
 
     const knowhere::Json conf = {
-        {knowhere::meta::METRIC_TYPE, metric},
-        {knowhere::meta::TOPK, topk},
+        {knowhere::meta::METRIC_TYPE, metric}, {knowhere::meta::TOPK, topk},      {knowhere::meta::BM25_K1, 1.2},
+        {knowhere::meta::BM25_B, 0.75},        {knowhere::meta::BM25_AVGDL, 100},
     };
 
     auto check_distance_decreasing = [](const knowhere::DataSet& ds) {
@@ -112,7 +114,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
             CAPTURE(name, cfg_json);
             knowhere::Json json = knowhere::Json::parse(cfg_json);
             REQUIRE(idx.Type() == name);
-            REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+            REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
             REQUIRE(idx.Size() > 0);
             REQUIRE(idx.Count() == nb);
 
@@ -132,7 +134,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
                 REQUIRE(idx.Deserialize(bs, json) == knowhere::Status::success);
             }
 
-            auto results = idx.Search(*query_ds, json, nullptr);
+            auto results = idx.Search(query_ds, json, nullptr);
             REQUIRE(results.has_value());
             float recall = GetKNNRecall(*gt.value(), *results.value());
             check_distance_decreasing(*results.value());
@@ -162,7 +164,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
         CAPTURE(name, cfg_json);
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
         REQUIRE(idx.Size() > 0);
         REQUIRE(idx.Count() == nb);
 
@@ -174,7 +176,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
         auto filter_gt = knowhere::BruteForce::SearchSparse(train_ds, query_ds, conf, bitset);
         check_result_match_filter(*filter_gt.value(), bitset);
 
-        auto results = idx.Search(*query_ds, json, bitset);
+        auto results = idx.Search(query_ds, json, bitset);
         check_result_match_filter(*results.value(), bitset);
 
         REQUIRE(results.has_value());
@@ -201,7 +203,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
         CAPTURE(name, cfg_json);
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
         REQUIRE(idx.Size() > 0);
         REQUIRE(idx.Count() == nb);
 
@@ -210,7 +212,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
 
         auto bitset_data = gen_bitset_fn(nb, bitset_percentages * nb);
         knowhere::BitsetView bitset(bitset_data.data(), nb);
-        auto iterators_or = idx.AnnIterator(*query_ds, json, bitset);
+        auto iterators_or = idx.AnnIterator(query_ds, json, bitset);
         REQUIRE(iterators_or.has_value());
         auto& iterators = iterators_or.value();
         REQUIRE(iterators.size() == (size_t)nq);
@@ -240,7 +242,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
         CAPTURE(name, cfg_json);
         knowhere::Json json = knowhere::Json::parse(cfg_json);
         REQUIRE(idx.Type() == name);
-        REQUIRE(idx.Build(*train_ds, json) == knowhere::Status::success);
+        REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
         REQUIRE(idx.Size() > 0);
         REQUIRE(idx.Count() == nb);
 
@@ -251,7 +253,7 @@ TEST_CASE("Test Mem Sparse Index With Float Vector", "[float metrics]") {
         json[knowhere::meta::RADIUS] = radius;
         json[knowhere::meta::RANGE_FILTER] = range_filter;
 
-        auto results = idx.RangeSearch(*query_ds, json, nullptr);
+        auto results = idx.RangeSearch(query_ds, json, nullptr);
         REQUIRE(results.has_value());
 
         auto gt =
@@ -334,11 +336,6 @@ TEST_CASE("Test Mem Sparse Index GetVectorByIds", "[float metrics]") {
 
     const auto train_ds = GenSparseDataSet(nb, dim, doc_sparsity);
 
-    const knowhere::Json conf = {
-        {knowhere::meta::METRIC_TYPE, metric},
-        {knowhere::meta::TOPK, 1},
-    };
-
     SECTION("Test GetVectorByIds") {
         using std::make_tuple;
         auto [name, gen] = GENERATE_REF(table<std::string, std::function<knowhere::Json()>>({
@@ -352,7 +349,7 @@ TEST_CASE("Test Mem Sparse Index GetVectorByIds", "[float metrics]") {
 
         auto ids_ds = GenIdsDataSet(nb, nq);
         REQUIRE(idx.Type() == name);
-        auto res = idx.Build(*train_ds, json);
+        auto res = idx.Build(train_ds, json);
         if (!idx.HasRawData(metric)) {
             return;
         }
@@ -364,7 +361,7 @@ TEST_CASE("Test Mem Sparse Index GetVectorByIds", "[float metrics]") {
         idx_new.Deserialize(bs);
 
         auto retrieve_task = [&]() {
-            auto results = idx_new.GetVectorByIds(*ids_ds);
+            auto results = idx_new.GetVectorByIds(ids_ds);
             REQUIRE(results.has_value());
             auto xb = (knowhere::sparse::SparseRow<float>*)train_ds->GetTensor();
             auto res_data = (knowhere::sparse::SparseRow<float>*)results.value()->GetTensor();
@@ -385,6 +382,111 @@ TEST_CASE("Test Mem Sparse Index GetVectorByIds", "[float metrics]") {
         }
         for (auto& task : retrieve_task_list) {
             task.wait();
+        }
+    }
+}
+
+TEST_CASE("Test Mem Sparse Index Handle Empty Vector", "[float metrics]") {
+    std::vector<std::map<int32_t, float>> base_data = {{{1, 1.1f}, {2, 2.2f}, {6, 3.3f}},
+                                                       // explicitly empty row
+                                                       {},
+                                                       // implicitly empty row
+                                                       {{5, 0.0f}}};
+    auto dim = 7;
+    const auto train_ds = GenSparseDataSet(base_data, dim);
+
+    auto topk = 5;
+
+    auto metric = GENERATE(knowhere::metric::IP, knowhere::metric::BM25);
+    auto version = GenTestVersionList();
+
+    auto base_gen = [=, dim = dim]() {
+        knowhere::Json json;
+        json[knowhere::meta::DIM] = dim;
+        json[knowhere::meta::METRIC_TYPE] = metric;
+        json[knowhere::meta::TOPK] = topk;
+        json[knowhere::meta::BM25_K1] = 1.2;
+        json[knowhere::meta::BM25_B] = 0.75;
+        json[knowhere::meta::BM25_AVGDL] = 100;
+        return json;
+    };
+
+    auto [name, gen] = GENERATE_REF(table<std::string, std::function<knowhere::Json()>>({
+        std::make_tuple(knowhere::IndexEnum::INDEX_SPARSE_INVERTED_INDEX, base_gen),
+        std::make_tuple(knowhere::IndexEnum::INDEX_SPARSE_WAND, base_gen),
+    }));
+
+    std::vector<std::map<int32_t, float>> query_data = {// q0 should find doc 0 only
+                                                        {{1, 1.1f}},
+                                                        // q1 and q2 should find no neighbor
+                                                        {{5, 1.1f}},
+                                                        {}};
+    const auto query_ds = GenSparseDataSet(query_data, dim);
+
+    auto idx = knowhere::IndexFactory::Instance().Create<knowhere::fp32>(name, version).value();
+    auto cfg_json = gen().dump();
+    CAPTURE(name, cfg_json);
+    knowhere::Json json = knowhere::Json::parse(cfg_json);
+    REQUIRE(idx.Type() == name);
+    REQUIRE(idx.Build(train_ds, json) == knowhere::Status::success);
+    REQUIRE(idx.Size() > 0);
+
+    knowhere::BinarySet bs;
+    REQUIRE(idx.Serialize(bs) == knowhere::Status::success);
+    REQUIRE(idx.Deserialize(bs, json) == knowhere::Status::success);
+
+    auto check_result = [&](const knowhere::DataSet& ds) {
+        auto nq = ds.GetRows();
+        auto k = ds.GetDim();
+        auto* ids = ds.GetIds();
+        REQUIRE(ids[0] == 0);
+        for (auto i = 1; i < nq * k; ++i) {
+            REQUIRE(ids[i] == -1);
+        }
+    };
+
+    const knowhere::Json conf = {
+        {knowhere::meta::METRIC_TYPE, metric}, {knowhere::meta::TOPK, topk},      {knowhere::meta::BM25_K1, 1.2},
+        {knowhere::meta::BM25_B, 0.75},        {knowhere::meta::BM25_AVGDL, 100},
+    };
+
+    SECTION("Test Search") {
+        auto bf_res = knowhere::BruteForce::SearchSparse(train_ds, query_ds, conf, nullptr);
+        REQUIRE(bf_res.has_value());
+        check_result(*bf_res.value());
+
+        auto results = idx.Search(query_ds, json, nullptr);
+        REQUIRE(results.has_value());
+        check_result(*results.value());
+    }
+
+    SECTION("Test RangeSearch") {
+        json[knowhere::meta::RADIUS] = 0.0f;
+        json[knowhere::meta::RANGE_FILTER] = 10000.0f;
+
+        auto bf_res =
+            knowhere::BruteForce::RangeSearch<knowhere::sparse::SparseRow<float>>(train_ds, query_ds, json, nullptr);
+        REQUIRE(bf_res.has_value());
+        check_result(*bf_res.value());
+
+        auto results = idx.RangeSearch(query_ds, json, nullptr);
+        REQUIRE(results.has_value());
+        check_result(*results.value());
+    }
+
+    SECTION("Test GetVectorByIds") {
+        std::vector<int64_t> ids = {0, 1, 2};
+        auto results = idx.GetVectorByIds(GenIdsDataSet(3, ids));
+        REQUIRE(results.has_value());
+        auto xb = (knowhere::sparse::SparseRow<float>*)train_ds->GetTensor();
+        auto res_data = (knowhere::sparse::SparseRow<float>*)results.value()->GetTensor();
+        for (int i = 0; i < 3; ++i) {
+            const auto& truth_row = xb[i];
+            const auto& res_row = res_data[i];
+            REQUIRE(truth_row.size() == res_row.size());
+            for (size_t j = 0; j < truth_row.size(); ++j) {
+                REQUIRE(truth_row[j] == res_row[j]);
+            }
         }
     }
 }

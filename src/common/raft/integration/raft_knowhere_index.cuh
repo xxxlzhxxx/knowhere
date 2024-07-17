@@ -603,7 +603,6 @@ struct raft_knowhere_index<IndexKind>::impl {
         auto const& res = get_device_resources_without_mempool();
         RAFT_EXPECTS(index_, "Index has not yet been trained");
         raft_index_type::template serialize<data_type, indexing_type>(res, os, *index_);
-
         if (device_dataset_storage) {
             raft::serialize_scalar(res, os, true);
             raft::serialize_scalar(res, os, device_dataset_storage->extent(0));
@@ -613,8 +612,38 @@ struct raft_knowhere_index<IndexKind>::impl {
             raft::serialize_scalar(res, os, false);
         }
     }
+
+    void
+    serialize_to_hnswlib(std::ostream& os) const {
+        // only carga can save to hnswlib format
+        if constexpr (index_kind == raft_proto::raft_index_kind::cagra) {
+            auto scoped_device = raft::device_setter{device_id};
+            auto const& res = get_device_resources_without_mempool();
+            RAFT_EXPECTS(index_, "Index has not yet been trained");
+            raft_index_type::template serialize_to_hnswlib<data_type, indexing_type>(res, os, *index_);
+            raft::serialize_scalar(res, os, false);
+        }
+    }
+
     auto static deserialize(std::istream& is) {
-        auto new_device_id = select_device_id();
+        auto static device_count = []() {
+            auto result = 0;
+            RAFT_CUDA_TRY(cudaGetDeviceCount(&result));
+            RAFT_EXPECTS(result != 0, "No CUDA devices found");
+            return result;
+        }();
+        // The lazy allocation mode cannot completely eliminate uneven distribution, but it can alleviate it well.
+        int new_device_id = 0;
+        size_t free, total;
+        size_t max_free = 0;
+        for (int i = 0; i < device_count; ++i) {
+            auto scoped_device = raft::device_setter{i};
+            RAFT_CUDA_TRY(cudaMemGetInfo(&free, &total));
+            if (max_free < free) {
+                max_free = free;
+                new_device_id = i;
+            }
+        }
         auto scoped_device = raft::device_setter{new_device_id};
         auto const& res = get_device_resources_without_mempool();
         auto des_index = raft_index_type::template deserialize<data_type, indexing_type>(res, is);
@@ -635,6 +664,7 @@ struct raft_knowhere_index<IndexKind>::impl {
         return std::make_unique<typename raft_knowhere_index<index_kind>::impl>(std::move(des_index), new_device_id,
                                                                                 std::move(dataset));
     }
+
     void
     synchronize(bool is_without_mempool = false) const {
         auto scoped_device = raft::device_setter{device_id};
@@ -731,6 +761,12 @@ template <raft_proto::raft_index_kind IndexKind>
 void
 raft_knowhere_index<IndexKind>::serialize(std::ostream& os) const {
     return pimpl->serialize(os);
+}
+
+template <raft_proto::raft_index_kind IndexKind>
+void
+raft_knowhere_index<IndexKind>::serialize_to_hnswlib(std::ostream& os) const {
+    return pimpl->serialize_to_hnswlib(os);
 }
 
 template <raft_proto::raft_index_kind IndexKind>

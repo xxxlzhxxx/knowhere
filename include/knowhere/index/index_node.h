@@ -49,19 +49,19 @@ class IndexNode : public Object {
     }
 
     virtual Status
-    Build(const DataSet& dataset, const Config& cfg) {
+    Build(const DataSetPtr dataset, const Config& cfg) {
         RETURN_IF_ERROR(Train(dataset, cfg));
         return Add(dataset, cfg);
     }
 
     virtual Status
-    Train(const DataSet& dataset, const Config& cfg) = 0;
+    Train(const DataSetPtr dataset, const Config& cfg) = 0;
 
     virtual Status
-    Add(const DataSet& dataset, const Config& cfg) = 0;
+    Add(const DataSetPtr dataset, const Config& cfg) = 0;
 
     virtual expected<DataSetPtr>
-    Search(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const = 0;
+    Search(const DataSetPtr dataset, const Config& cfg, const BitsetView& bitset) const = 0;
 
     // not thread safe.
     class iterator {
@@ -73,50 +73,88 @@ class IndexNode : public Object {
         virtual ~iterator() {
         }
     };
+    using IteratorPtr = std::shared_ptr<iterator>;
 
-    virtual expected<std::vector<std::shared_ptr<iterator>>>
-    AnnIterator(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const {
+    virtual expected<std::vector<IteratorPtr>>
+    AnnIterator(const DataSetPtr dataset, const Config& cfg, const BitsetView& bitset) const {
         return expected<std::vector<std::shared_ptr<iterator>>>::Err(
             Status::not_implemented, "annIterator not supported for current index type");
     }
 
     // Default range search implementation based on iterator. Assumes the iterator will buffer an expanded range and
-    // return the closest elements on each Next() call, thus range search will stop immediately after seeing an element
-    // beyond the provided radius.
+    // return the closest elements on each Next() call.
     //
     // TODO: test with mock AnnIterator after we introduced mock framework into knowhere. Currently this is tested in
     // test_sparse.cc with real sparse vector index.
     virtual expected<DataSetPtr>
-    RangeSearch(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const {
+    RangeSearch(const DataSetPtr dataset, const Config& cfg, const BitsetView& bitset) const {
         auto its_or = AnnIterator(dataset, cfg, bitset);
         if (!its_or.has_value()) {
             return expected<DataSetPtr>::Err(its_or.error(),
                                              "RangeSearch failed due to AnnIterator failure: " + its_or.what());
         }
         const auto base_cfg = static_cast<const BaseConfig&>(cfg);
-        const float range_filter = base_cfg.range_filter.value();
-        const float radius = base_cfg.radius.value();
+        const float closer_bound = base_cfg.range_filter.value();
+        const bool has_closer_bound = closer_bound != defaultRangeFilter;
+        // The `range_search_k` is used to early terminate the iterator-search.
+        //  When the number of range-valid results exceeds range_search_k, the `further_bound` will be updated.
+        //  "-1" means no early termination, `further_bound` will not be updated.
+        // Note that the number of results is not guaranteed to be exactly range_search_k, it may be more or less.
+        float further_bound = base_cfg.radius.value();
+        const int32_t range_search_k = base_cfg.range_search_k.value();
+        LOG_KNOWHERE_DEBUG_ << "range_search_k: " << range_search_k;
+
+        const bool the_larger_the_closer = IsMetricType(base_cfg.metric_type.value(), metric::IP) ||
+                                           IsMetricType(base_cfg.metric_type.value(), metric::COSINE) ||
+                                           IsMetricType(base_cfg.metric_type.value(), metric::BM25);
+        auto is_first_closer = [&the_larger_the_closer](const float dist_1, const float dist_2) {
+            return the_larger_the_closer ? dist_1 > dist_2 : dist_1 < dist_2;
+        };
+        auto too_close = [&is_first_closer, &closer_bound](float dist) { return is_first_closer(dist, closer_bound); };
+        auto same_or_too_far = [&is_first_closer, &further_bound](float dist) {
+            return !is_first_closer(dist, further_bound);
+        };
 
         const auto its = its_or.value();
         const auto nq = its.size();
-
         std::vector<std::vector<int64_t>> result_id_array(nq);
         std::vector<std::vector<float>> result_dist_array(nq);
-        const bool similarity_metric = IsMetricType(base_cfg.metric_type.value(), metric::IP) ||
-                                       IsMetricType(base_cfg.metric_type.value(), metric::COSINE);
-        const bool has_range_filter = range_filter != defaultRangeFilter;
+
+        constexpr size_t k_min_num_consecutive_over_further_bound = 16;
+        const auto range_search_level = base_cfg.range_search_level.value();  // from 0 to 0.5
+        LOG_KNOWHERE_DEBUG_ << "range_search_level: " << range_search_level;
+
         auto task = [&](size_t idx) {
+            // max-heap, use top (the current kth-furthest dist) as the further_bound if size == range_search_k
+            std::priority_queue<float, std::vector<float>, decltype(is_first_closer)> early_stop_further_bounds(
+                is_first_closer);
             auto it = its[idx];
+            size_t num_next = 0;
+            size_t num_consecutive_over_further_bound = 0;
             while (it->HasNext()) {
                 auto [id, dist] = it->Next();
-                // too close
-                if (has_range_filter && (similarity_metric ? dist > range_filter : dist < range_filter)) {
+                num_next++;
+                if (has_closer_bound && too_close(dist)) {
                     continue;
                 }
-                // too far
-                if (similarity_metric ? dist <= radius : dist >= radius) {
-                    break;
+                if (same_or_too_far(dist)) {
+                    num_consecutive_over_further_bound++;
+                    if (num_consecutive_over_further_bound >
+                        std::max(k_min_num_consecutive_over_further_bound, (size_t)(num_next * range_search_level))) {
+                        break;
+                    }
+                    continue;
                 }
+                if (range_search_k > 0) {
+                    if (static_cast<int32_t>(early_stop_further_bounds.size()) < range_search_k) {
+                        early_stop_further_bounds.emplace(dist);
+                    } else {
+                        early_stop_further_bounds.pop();
+                        early_stop_further_bounds.emplace(dist);
+                        further_bound = early_stop_further_bounds.top();
+                    }
+                }
+                num_consecutive_over_further_bound = 0;
                 result_id_array[idx].push_back(id);
                 result_dist_array[idx].push_back(dist);
             }
@@ -134,16 +172,13 @@ class IndexNode : public Object {
         }
 #endif
 
-        int64_t* ids = nullptr;
-        float* dis = nullptr;
-        size_t* lims = nullptr;
-        GetRangeSearchResult(result_dist_array, result_id_array, similarity_metric, nq, radius, range_filter, dis, ids,
-                             lims);
-        return GenResultDataSet(nq, ids, dis, lims);
+        auto range_search_result = GetRangeSearchResult(result_dist_array, result_id_array, the_larger_the_closer, nq,
+                                                        further_bound, closer_bound);
+        return GenResultDataSet(nq, std::move(range_search_result));
     }
 
     virtual expected<DataSetPtr>
-    GetVectorByIds(const DataSet& dataset) const = 0;
+    GetVectorByIds(const DataSetPtr dataset) const = 0;
 
     virtual bool
     HasRawData(const std::string& metric_type) const = 0;

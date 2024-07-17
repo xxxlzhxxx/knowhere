@@ -37,16 +37,37 @@ namespace knowhere {
 
 class BruteForceConfig : public BaseConfig {};
 
+namespace {
+
+template <typename T>
+expected<sparse::DocValueComputer<T>>
+GetDocValueComputer(const BruteForceConfig& cfg) {
+    if (IsMetricType(cfg.metric_type.value(), metric::IP)) {
+        return sparse::GetDocValueOriginalComputer<T>();
+    } else if (IsMetricType(cfg.metric_type.value(), metric::BM25)) {
+        if (!cfg.bm25_k1.has_value() || !cfg.bm25_b.has_value() || !cfg.bm25_avgdl.has_value()) {
+            return expected<sparse::DocValueComputer<T>>::Err(
+                Status::invalid_args, "bm25_k1, bm25_b, bm25_avgdl must be set when searching for bm25 metric");
+        }
+        auto k1 = cfg.bm25_k1.value();
+        auto b = cfg.bm25_b.value();
+        auto avgdl = cfg.bm25_avgdl.value();
+        return sparse::GetDocValueBM25Computer<T>(k1, b, avgdl);
+    } else {
+        return expected<sparse::DocValueComputer<T>>::Err(Status::invalid_metric_type,
+                                                          "metric type not supported for sparse vector");
+    }
+}
+
+}  // namespace
+
 template <typename DataType>
 expected<DataSetPtr>
 BruteForce::Search(const DataSetPtr base_dataset, const DataSetPtr query_dataset, const Json& config,
                    const BitsetView& bitset) {
-    DataSetPtr base(base_dataset);
-    DataSetPtr query(query_dataset);
-    if constexpr (!std::is_same_v<DataType, typename MockData<DataType>::type>) {
-        base = data_type_conversion<DataType, typename MockData<DataType>::type>(*base_dataset);
-        query = data_type_conversion<DataType, typename MockData<DataType>::type>(*query_dataset);
-    }
+    auto base = ConvertFromDataTypeIfNeeded<DataType>(base_dataset);
+    auto query = ConvertFromDataTypeIfNeeded<DataType>(query_dataset);
+
     auto xb = base->GetTensor();
     auto nb = base->GetRows();
     auto dim = base->GetDim();
@@ -153,7 +174,7 @@ BruteForce::Search(const DataSetPtr base_dataset, const DataSetPtr query_dataset
     if (ret != Status::success) {
         return expected<DataSetPtr>::Err(ret, "failed to brute force search");
     }
-    auto res = GenResultDataSet(nq, cfg.k.value(), labels.release(), distances.release());
+    auto res = GenResultDataSet(nq, cfg.k.value(), std::move(labels), std::move(distances));
 
 #if defined(NOT_COMPILE_FOR_SWIG) && !defined(KNOWHERE_WITH_LIGHT)
     if (cfg.trace_id.has_value()) {
@@ -168,12 +189,9 @@ template <typename DataType>
 Status
 BruteForce::SearchWithBuf(const DataSetPtr base_dataset, const DataSetPtr query_dataset, int64_t* ids, float* dis,
                           const Json& config, const BitsetView& bitset) {
-    DataSetPtr base(base_dataset);
-    DataSetPtr query(query_dataset);
-    if constexpr (!std::is_same_v<DataType, typename MockData<DataType>::type>) {
-        base = data_type_conversion<DataType, typename MockData<DataType>::type>(*base_dataset);
-        query = data_type_conversion<DataType, typename MockData<DataType>::type>(*query_dataset);
-    }
+    auto base = ConvertFromDataTypeIfNeeded<DataType>(base_dataset);
+    auto query = ConvertFromDataTypeIfNeeded<DataType>(query_dataset);
+
     auto xb = base->GetTensor();
     auto nb = base->GetRows();
     auto dim = base->GetDim();
@@ -293,10 +311,8 @@ BruteForce::RangeSearch(const DataSetPtr base_dataset, const DataSetPtr query_da
     DataSetPtr query(query_dataset);
     bool is_sparse = std::is_same<DataType, knowhere::sparse::SparseRow<float>>::value;
     if (!is_sparse) {
-        if constexpr (!std::is_same_v<DataType, typename MockData<DataType>::type>) {
-            base = data_type_conversion<DataType, typename MockData<DataType>::type>(*base_dataset);
-            query = data_type_conversion<DataType, typename MockData<DataType>::type>(*query_dataset);
-        }
+        base = ConvertFromDataTypeIfNeeded<DataType>(base_dataset);
+        query = ConvertFromDataTypeIfNeeded<DataType>(query_dataset);
     }
     auto xb = base->GetTensor();
     auto nb = base->GetRows();
@@ -329,15 +345,24 @@ BruteForce::RangeSearch(const DataSetPtr base_dataset, const DataSetPtr query_da
 #endif
 
     std::string metric_str = cfg.metric_type.value();
-    auto result = Str2FaissMetricType(metric_str);
-    if (result.error() != Status::success) {
-        return expected<DataSetPtr>::Err(result.error(), result.what());
+    const bool is_bm25 = IsMetricType(metric_str, metric::BM25);
+
+    faiss::MetricType faiss_metric_type;
+    sparse::DocValueComputer<float> sparse_computer;
+    if (!is_sparse) {
+        auto result = Str2FaissMetricType(metric_str);
+        if (result.error() != Status::success) {
+            return expected<DataSetPtr>::Err(result.error(), result.what());
+        }
+        faiss_metric_type = result.value();
+    } else {
+        auto computer_or = GetDocValueComputer<float>(cfg);
+        if (!computer_or.has_value()) {
+            return expected<DataSetPtr>::Err(computer_or.error(), computer_or.what());
+        }
+        sparse_computer = computer_or.value();
     }
-    faiss::MetricType faiss_metric_type = result.value();
-    if (is_sparse && !IsMetricType(metric_str, metric::IP)) {
-        return expected<DataSetPtr>::Err(Status::invalid_metric_type,
-                                         "Invalid metric type for sparse float vector: " + metric_str);
-    }
+
     bool is_cosine = IsMetricType(metric_str, metric::COSINE);
 
     auto radius = cfg.radius.value();
@@ -360,7 +385,14 @@ BruteForce::RangeSearch(const DataSetPtr base_dataset, const DataSetPtr query_da
                     if (!bitset.empty() && bitset.test(j)) {
                         continue;
                     }
-                    auto dist = cur_query->dot(xb_sparse[j]);
+                    float row_sum = 0;
+                    if (is_bm25) {
+                        for (size_t k = 0; k < xb_sparse[j].size(); ++k) {
+                            auto [d, v] = xb_sparse[j][k];
+                            row_sum += v;
+                        }
+                    }
+                    auto dist = cur_query->dot(xb_sparse[j], sparse_computer, row_sum);
                     if (dist > radius && dist <= range_filter) {
                         result_id_array[index].push_back(j);
                         result_dist_array[index].push_back(dist);
@@ -432,11 +464,9 @@ BruteForce::RangeSearch(const DataSetPtr base_dataset, const DataSetPtr query_da
         return expected<DataSetPtr>::Err(ret, "failed to brute force search");
     }
 
-    int64_t* ids = nullptr;
-    float* distances = nullptr;
-    size_t* lims = nullptr;
-    GetRangeSearchResult(result_dist_array, result_id_array, is_ip, nq, radius, range_filter, distances, ids, lims);
-    auto res = GenResultDataSet(nq, ids, distances, lims);
+    auto range_search_result =
+        GetRangeSearchResult(result_dist_array, result_id_array, is_ip || is_bm25, nq, radius, range_filter);
+    auto res = GenResultDataSet(nq, std::move(range_search_result));
 
 #if defined(NOT_COMPILE_FOR_SWIG) && !defined(KNOWHERE_WITH_LIGHT)
     if (cfg.trace_id.has_value()) {
@@ -479,15 +509,13 @@ BruteForce::SearchSparseWithBuf(const DataSetPtr base_dataset, const DataSetPtr 
 #endif
 
     std::string metric_str = cfg.metric_type.value();
-    auto result = Str2FaissMetricType(metric_str);
-    if (result.error() != Status::success) {
-        LOG_KNOWHERE_ERROR_ << "Invalid metric type: " << cfg.metric_type.value();
-        return result.error();
+    const bool is_bm25 = IsMetricType(metric_str, metric::BM25);
+
+    auto computer_or = GetDocValueComputer<float>(cfg);
+    if (!computer_or.has_value()) {
+        return computer_or.error();
     }
-    if (!IsMetricType(metric_str, metric::IP)) {
-        LOG_KNOWHERE_ERROR_ << "Invalid metric type: " << cfg.metric_type.value();
-        return Status::invalid_metric_type;
-    }
+    auto computer = computer_or.value();
 
     int topk = cfg.k.value();
     std::fill(distances, distances + nq * topk, std::numeric_limits<float>::quiet_NaN());
@@ -510,7 +538,14 @@ BruteForce::SearchSparseWithBuf(const DataSetPtr base_dataset, const DataSetPtr 
                 if (!bitset.empty() && bitset.test(j)) {
                     continue;
                 }
-                float dist = row.dot(base[j]);
+                float row_sum = 0;
+                if (is_bm25) {
+                    for (size_t k = 0; k < base[j].size(); ++k) {
+                        auto [d, v] = base[j][k];
+                        row_sum += v;
+                    }
+                }
+                float dist = row.dot(base[j], computer, row_sum);
                 if (dist > 0) {
                     heap.push(j, dist);
                 }
@@ -550,19 +585,16 @@ BruteForce::SearchSparse(const DataSetPtr base_dataset, const DataSetPtr query_d
     auto distances = std::make_unique<float[]>(nq * topk);
 
     SearchSparseWithBuf(base_dataset, query_dataset, labels.get(), distances.get(), config, bitset);
-    return GenResultDataSet(nq, topk, labels.release(), distances.release());
+    return GenResultDataSet(nq, topk, std::move(labels), std::move(distances));
 }
 
 template <typename DataType>
-expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
+expected<std::vector<IndexNode::IteratorPtr>>
 BruteForce::AnnIterator(const DataSetPtr base_dataset, const DataSetPtr query_dataset, const Json& config,
                         const BitsetView& bitset) {
-    DataSetPtr base(base_dataset);
-    DataSetPtr query(query_dataset);
-    if constexpr (!std::is_same_v<DataType, typename MockData<DataType>::type>) {
-        base = data_type_conversion<DataType, typename MockData<DataType>::type>(*base_dataset);
-        query = data_type_conversion<DataType, typename MockData<DataType>::type>(*query_dataset);
-    }
+    auto base = ConvertFromDataTypeIfNeeded<DataType>(base_dataset);
+    auto query = ConvertFromDataTypeIfNeeded<DataType>(query_dataset);
+
     auto xb = base->GetTensor();
     auto nb = base->GetRows();
     auto dim = base->GetDim();
@@ -573,12 +605,12 @@ BruteForce::AnnIterator(const DataSetPtr base_dataset, const DataSetPtr query_da
     std::string msg;
     auto status = Config::Load(cfg, config, knowhere::ITERATOR, &msg);
     if (status != Status::success) {
-        return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(status, msg);
+        return expected<std::vector<IndexNode::IteratorPtr>>::Err(status, msg);
     }
     std::string metric_str = cfg.metric_type.value();
     auto result = Str2FaissMetricType(metric_str);
     if (result.error() != Status::success) {
-        return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(result.error(), result.what());
+        return expected<std::vector<IndexNode::IteratorPtr>>::Err(result.error(), result.what());
     }
 
 #if defined(NOT_COMPILE_FOR_SWIG) && !defined(KNOWHERE_WITH_LIGHT)
@@ -596,7 +628,7 @@ BruteForce::AnnIterator(const DataSetPtr base_dataset, const DataSetPtr query_da
     bool is_cosine = IsMetricType(metric_str, metric::COSINE);
 
     auto pool = ThreadPool::GetGlobalSearchThreadPool();
-    auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
+    auto vec = std::vector<IndexNode::IteratorPtr>(nq, nullptr);
     std::vector<folly::Future<Status>> futs;
     futs.reserve(nq);
 
@@ -640,8 +672,7 @@ BruteForce::AnnIterator(const DataSetPtr base_dataset, const DataSetPtr query_da
 
     auto ret = WaitAllSuccess(futs);
     if (ret != Status::success) {
-        return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(
-            ret, "failed to brute force search for iterator");
+        return expected<std::vector<IndexNode::IteratorPtr>>::Err(ret, "failed to brute force search for iterator");
     }
 
 #if defined(NOT_COMPILE_FOR_SWIG) && !defined(KNOWHERE_WITH_LIGHT)
@@ -653,7 +684,7 @@ BruteForce::AnnIterator(const DataSetPtr base_dataset, const DataSetPtr query_da
 }
 
 template <>
-expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
+expected<std::vector<IndexNode::IteratorPtr>>
 BruteForce::AnnIterator<knowhere::sparse::SparseRow<float>>(const DataSetPtr base_dataset,
                                                             const DataSetPtr query_dataset, const Json& config,
                                                             const BitsetView& bitset) {
@@ -669,7 +700,7 @@ BruteForce::AnnIterator<knowhere::sparse::SparseRow<float>>(const DataSetPtr bas
     auto status = Config::Load(cfg, config, knowhere::ITERATOR, &msg);
     if (status != Status::success) {
         LOG_KNOWHERE_ERROR_ << "Failed to load config: " << msg;
-        return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(
+        return expected<std::vector<IndexNode::IteratorPtr>>::Err(
             status, "Failed to brute force search sparse for iterator: failed to load config: " + msg);
     }
 
@@ -687,21 +718,16 @@ BruteForce::AnnIterator<knowhere::sparse::SparseRow<float>>(const DataSetPtr bas
     }
 #endif
 
-    auto result = Str2FaissMetricType(metric_str);
-    if (result.error() != Status::success) {
-        LOG_KNOWHERE_ERROR_ << "Invalid metric type: " << metric_str;
-        return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(
-            result.error(), "Failed to brute force search sparse for iterator: invalid metric type " + metric_str);
+    const bool is_bm25 = IsMetricType(metric_str, metric::BM25);
+
+    auto computer_or = GetDocValueComputer<float>(cfg);
+    if (!computer_or.has_value()) {
+        return expected<std::vector<IndexNode::IteratorPtr>>::Err(computer_or.error(), computer_or.what());
     }
-    if (!IsMetricType(metric_str, metric::IP)) {
-        LOG_KNOWHERE_ERROR_ << "Invalid metric type: " << metric_str;
-        return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(
-            Status::invalid_metric_type,
-            "Failed to brute force search sparse for iterator: invalid metric type " + metric_str);
-    }
+    auto computer = computer_or.value();
 
     auto pool = ThreadPool::GetGlobalSearchThreadPool();
-    auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
+    auto vec = std::vector<IndexNode::IteratorPtr>(nq, nullptr);
     std::vector<folly::Future<folly::Unit>> futs;
     futs.reserve(nq);
     for (int64_t i = 0; i < nq; ++i) {
@@ -713,7 +739,14 @@ BruteForce::AnnIterator<knowhere::sparse::SparseRow<float>>(const DataSetPtr bas
                     if (!bitset.empty() && bitset.test(j)) {
                         continue;
                     }
-                    auto dist = row.dot(base[j]);
+                    float row_sum = 0;
+                    if (is_bm25) {
+                        for (size_t k = 0; k < base[j].size(); ++k) {
+                            auto [d, v] = base[j][k];
+                            row_sum += v;
+                        }
+                    }
+                    auto dist = row.dot(base[j], computer, row_sum);
                     if (dist > 0) {
                         distances_ids.emplace_back(j, dist);
                     }
@@ -788,15 +821,15 @@ knowhere::BruteForce::RangeSearch<knowhere::sparse::SparseRow<float>>(const know
                                                                       const knowhere::Json& config,
                                                                       const knowhere::BitsetView& bitset);
 
-template knowhere::expected<std::vector<std::shared_ptr<knowhere::IndexNode::iterator>>>
+template knowhere::expected<std::vector<knowhere::IndexNode::IteratorPtr>>
 knowhere::BruteForce::AnnIterator<knowhere::fp32>(const knowhere::DataSetPtr base_dataset,
                                                   const knowhere::DataSetPtr query_dataset,
                                                   const knowhere::Json& config, const knowhere::BitsetView& bitset);
-template knowhere::expected<std::vector<std::shared_ptr<knowhere::IndexNode::iterator>>>
+template knowhere::expected<std::vector<knowhere::IndexNode::IteratorPtr>>
 knowhere::BruteForce::AnnIterator<knowhere::fp16>(const knowhere::DataSetPtr base_dataset,
                                                   const knowhere::DataSetPtr query_dataset,
                                                   const knowhere::Json& config, const knowhere::BitsetView& bitset);
-template knowhere::expected<std::vector<std::shared_ptr<knowhere::IndexNode::iterator>>>
+template knowhere::expected<std::vector<knowhere::IndexNode::IteratorPtr>>
 knowhere::BruteForce::AnnIterator<knowhere::bf16>(const knowhere::DataSetPtr base_dataset,
                                                   const knowhere::DataSetPtr query_dataset,
                                                   const knowhere::Json& config, const knowhere::BitsetView& bitset);

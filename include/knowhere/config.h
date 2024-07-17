@@ -633,7 +633,9 @@ class BaseConfig : public Config {
     // for distance metrics, we search for vectors with distance in [range_filter, radius).
     // for similarity metrics, we search for vectors with similarity in (radius, range_filter].
     CFG_FLOAT radius;
+    CFG_INT range_search_k;
     CFG_FLOAT range_filter;
+    CFG_FLOAT range_search_level;
     CFG_BOOL trace_visit;
     CFG_BOOL enable_mmap;
     CFG_BOOL enable_mmap_pop;
@@ -645,13 +647,24 @@ class BaseConfig : public Config {
     CFG_MATERIALIZED_VIEW_SEARCH_INFO_TYPE materialized_view_search_info;
     CFG_STRING opt_fields_path;
     CFG_FLOAT iterator_refine_ratio;
+    /**
+     * k1, b, avgdl are used by BM25 metric only.
+     * - k1, b, avgdl must be provided at load time.
+     * - k1 and b can be overridden at search time for SPARSE_INVERTED_INDEX
+     *   but not for SPARSE_WAND.
+     * - avgdl must always be provided at search time.
+     */
+    CFG_FLOAT bm25_k1;
+    CFG_FLOAT bm25_b;
+    CFG_FLOAT bm25_avgdl;
     KNOHWERE_DECLARE_CONFIG(BaseConfig) {
         KNOWHERE_CONFIG_DECLARE_FIELD(metric_type)
             .set_default("L2")
             .description("metric type")
             .for_train_and_search()
             .for_iterator()
-            .for_deserialize();
+            .for_deserialize()
+            .for_deserialize_from_file();
         KNOWHERE_CONFIG_DECLARE_FIELD(retrieve_friendly)
             .description("whether the index holds raw data for fast retrieval")
             .set_default(false)
@@ -679,9 +692,19 @@ class BaseConfig : public Config {
             .set_default(0.0)
             .description("radius for range search")
             .for_range_search();
+        KNOWHERE_CONFIG_DECLARE_FIELD(range_search_k)
+            .set_default(-1)
+            .description("limit the number of similar results returned by range_search. -1 means no limitations.")
+            .set_range(-1, std::numeric_limits<CFG_INT::value_type>::max())
+            .for_range_search();
         KNOWHERE_CONFIG_DECLARE_FIELD(range_filter)
             .set_default(defaultRangeFilter)
             .description("result filter for range search")
+            .for_range_search();
+        KNOWHERE_CONFIG_DECLARE_FIELD(range_search_level)
+            .set_default(0.01f)
+            .description("control the accurancy of range search, [0.0 - 0.5], the larger the more accurate")
+            .set_range(0, 0.5)
             .for_range_search();
         KNOWHERE_CONFIG_DECLARE_FIELD(trace_visit)
             .set_default(false)
@@ -722,6 +745,7 @@ class BaseConfig : public Config {
             .description("materialized view search info")
             .allow_empty_without_default()
             .for_search()
+            .for_iterator()
             .for_range_search();
         KNOWHERE_CONFIG_DECLARE_FIELD(opt_fields_path)
             .description("materialized view optional fields path")
@@ -732,6 +756,30 @@ class BaseConfig : public Config {
             .description("refine ratio for iterator")
             .for_iterator()
             .for_range_search();
+        KNOWHERE_CONFIG_DECLARE_FIELD(bm25_k1)
+            .allow_empty_without_default()
+            .set_range(0.0, 3.0)
+            .description("BM25 k1 to tune the term frequency scaling factor")
+            .for_train_and_search()
+            .for_iterator()
+            .for_deserialize()
+            .for_deserialize_from_file();
+        KNOWHERE_CONFIG_DECLARE_FIELD(bm25_b)
+            .allow_empty_without_default()
+            .set_range(0.0, 1.0)
+            .description("BM25 beta to tune the document length scaling factor")
+            .for_train_and_search()
+            .for_iterator()
+            .for_deserialize()
+            .for_deserialize_from_file();
+        KNOWHERE_CONFIG_DECLARE_FIELD(bm25_avgdl)
+            .allow_empty_without_default()
+            .set_range(1, std::numeric_limits<CFG_FLOAT::value_type>::max())
+            .description("average document length")
+            .for_train_and_search()
+            .for_iterator()
+            .for_deserialize()
+            .for_deserialize_from_file();
     }
 };
 }  // namespace knowhere
