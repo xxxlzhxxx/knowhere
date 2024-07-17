@@ -1607,8 +1607,11 @@ namespace diskann {
       this->thread_data.wait_for_push_notify();
       data = this->thread_data.pop();
     }
-    auto query_norm_opt = init_thread_data(data, 
-        workspace->Config.query_data);
+
+
+    auto query_data_fp16 = static_cast<const knowhere::fp16*>(workspace->Config.query_data);
+    auto query_norm_opt = init_thread_data(data, query_data_fp16);
+   
     if (!query_norm_opt.has_value()) {
       // return an empty answer when calcu a zero point
       this->thread_data.push(data);
