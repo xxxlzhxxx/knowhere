@@ -1609,7 +1609,7 @@ namespace diskann {
     }
 
 
-    auto query_data_fp16 = static_cast<const T*>(workspace->Config.query_data);
+    auto query_data_fp16 = static_cast<const *>(workspace->Config.query_data);
     auto query_norm_opt = init_thread_data(data, query_data_fp16);
    
     if (!query_norm_opt.has_value()) {
