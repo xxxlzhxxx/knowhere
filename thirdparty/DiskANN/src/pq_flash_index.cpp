@@ -1607,7 +1607,8 @@ namespace diskann {
       this->thread_data.wait_for_push_notify();
       data = this->thread_data.pop();
     }
-    auto query_norm_opt = init_thread_data(data, workspace->Config.query_data);
+    auto query_norm_opt = init_thread_data(data, 
+        static_cast<const knowhere::bf16*>(workspace->Config.query_data));
     if (!query_norm_opt.has_value()) {
       // return an empty answer when calcu a zero point
       this->thread_data.push(data);
@@ -1773,7 +1774,7 @@ namespace diskann {
         
           // lzh::以上比较了query和这个node的距离，然后放到了res集合里
           workspace->refined_dists.push(
-              Neighbor((unsigned) node_id, cur_expanded_dist));
+              ((unsigned) node_id, cur_expanded_dist));
 
           auto [nnbrs, node_nbrs] = filter_nbrs(n_nbr, nbrs);
           compute_dists(node_nbrs, nnbrs, dist_scratch);
