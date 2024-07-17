@@ -1639,31 +1639,7 @@ namespace diskann {
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
         cached_nhoods;
     cached_nhoods.reserve(2 * workspace->Config.beam_width);
-
     
-    std::vector<unsigned> filtered_nbrs;
-    filtered_nbrs.reserve(this->max_degree);
-    auto filter_nbrs = [&](_u64      nnbrs,
-                           unsigned *node_nbrs) -> std::pair<_u64, unsigned *> {
-      filtered_nbrs.clear();
-      for (_u64 m = 0; m < nnbrs; ++m) {
-        unsigned id = node_nbrs[m];
-        if (workspace->visited.find(id) != workspace->visited.end()) {
-          continue;
-        }
-        workspace->visited.insert(id);
-        if (!workspace->Config.bitset.empty() && workspace->Config.bitset.test(id)) {
-          workspace->accumulative_alpha += kAlpha;
-          if (workspace->accumulative_alpha < 1.0f) {
-            continue;
-          }
-          workspace->accumulative_alpha -= 1.0f;
-        }
-        cmps++;
-        filtered_nbrs.push_back(id);
-      }
-      return {filtered_nbrs.size(), filtered_nbrs.data()};
-    };
 
     // query <-> PQ chunk centers distances
     float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
@@ -1710,6 +1686,35 @@ namespace diskann {
       workspace->Config.initial_search_done = true;
       return;
     }
+
+
+
+    unsigned cmps = 0;
+    unsigned hops = 0;
+    
+    std::vector<unsigned> filtered_nbrs;
+    filtered_nbrs.reserve(this->max_degree);
+    auto filter_nbrs = [&](_u64      nnbrs,
+                           unsigned *node_nbrs) -> std::pair<_u64, unsigned *> {
+      filtered_nbrs.clear();
+      for (_u64 m = 0; m < nnbrs; ++m) {
+        unsigned id = node_nbrs[m];
+        if (workspace->visited.find(id) != workspace->visited.end()) {
+          continue;
+        }
+        workspace->visited.insert(id);
+        if (!workspace->Config.bitset.empty() && workspace->Config.bitset.test(id)) {
+          workspace->accumulative_alpha += kAlpha;
+          if (workspace->accumulative_alpha < 1.0f) {
+            continue;
+          }
+          workspace->accumulative_alpha -= 1.0f;
+        }
+        cmps++;
+        filtered_nbrs.push_back(id);
+      }
+      return {filtered_nbrs.size(), filtered_nbrs.data()};
+    };
 
     while (workspace->res.size() < workspace->Config.l_search || 
       workspace->res.back().distance > workspace->candidate.top().distance) {
