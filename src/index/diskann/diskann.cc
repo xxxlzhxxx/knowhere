@@ -147,9 +147,7 @@ class DiskANNIndexNode : public IndexNode {
         auto xq = dataset->GetTensor();
         auto diskann_cfg = static_cast<const DiskANNConfig&>(cfg);
         auto ef = diskann_cfg.search_list_size;
-        auto k = diskann_cfg.k;
-        float* distances;
-
+  
         std::vector<folly::Future<folly::Unit>> futs;
         futs.reserve(nq);
         auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
@@ -159,8 +157,8 @@ class DiskANNIndexNode : public IndexNode {
             futs.emplace_back(search_pool_->push([&, i]() {
                 auto single_query = (const char*)xq + i * index_->data_size_;
                 auto it =
-                    std::make_shared<iterator>(true, single_query, ef, k, this->pq_flash_index_,
-                    distances, diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning);
+                    std::make_shared<iterator>(true, single_query, ef, this->pq_flash_index_,
+                    diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning);
                 it->initialize();
                 vec[i] = it;
             }));
@@ -181,8 +179,8 @@ class DiskANNIndexNode : public IndexNode {
       IndexIterator(transform),
       index_(pq_flash_index_),
       transform_(transform),
-      workspace_(index_->getIteratorWorkspace(query_data, ef, k, indices, 
-      distances, beam_width, use_reorder_data, bitset)) {}
+      workspace_(index_->getIteratorWorkspace(query_data, ef, indices, 
+       beam_width, use_reorder_data, bitset)) {}
 
      protected:
         void
