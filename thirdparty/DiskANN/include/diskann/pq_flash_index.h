@@ -234,7 +234,7 @@ struct IteratorWorkspace {
 
     
     std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(
-      T *query_data, const _u64 ef, const _u64 beam_width,
+      void *query_data, const _u64 ef, const _u64 beam_width,
       const bool use_reorder_data, const float filter_ratio_in,
       const bool for_tun, const knowhere::BitsetView &bitset);
 
