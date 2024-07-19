@@ -138,7 +138,7 @@ class DiskANNIndexNode : public IndexNode {
 
 
     expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
-    AnnIterator(const DataSet& dataset, const Config& cfg, const BitsetView& bitset) const override {
+    AnnIterator(const DataSetPtr dataset, const Config& cfg, const BitsetView& bitset) const override {
         if (pq_flash_index_ == nullptr){
             LOG_KNOWHERE_WARNING_ << "creating iterator on empty index";
             return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(Status::empty_index,                                                                        "index not loaded");
@@ -172,7 +172,7 @@ class DiskANNIndexNode : public IndexNode {
  private:
     class iterator : public IndexIterator {
      public:
-        iterator(const bool transform, const T *query_data, const _u64 ef, const _u64 k, _s64 *indices,
+        iterator(const bool transform, void *query_data, const _u64 ef, const _u64 k, _s64 *indices,
       float *distances, const _u64 beam_width, const bool use_reorder_data,
       const float filter_ratio_in, const bool for_tun,
       const knowhere::BitsetView &bitset):
