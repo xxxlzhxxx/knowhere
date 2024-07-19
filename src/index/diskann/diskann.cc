@@ -171,7 +171,7 @@ class DiskANNIndexNode : public IndexNode {
  private:
     class iterator : public IndexIterator {
      public:
-        iterator(const bool transform, const char* query_data, const std::optional<int>& ef,
+        iterator(const bool transform, void* query_data, const std::optional<int>& ef,
                  const std::optional<int>& beam_width, const bool use_reorder_data,
                  const std::optional<float>& filter_ratio_in, const std::optional<bool>& for_tun,
                  const knowhere::BitsetView& bitset, diskann::PQFlashIndex<DataType>* index)
