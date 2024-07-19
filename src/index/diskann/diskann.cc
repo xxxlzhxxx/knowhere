@@ -154,15 +154,14 @@ class DiskANNIndexNode : public IndexNode {
         auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
 
 
-        auto p_id = std::make_unique<int64_t[]>(k * nq);
-        auto p_dist = std::make_unique<DistType[]>(k * nq);
+        
 
         for (int i=0; i<nq; i++){
             futs.emplace_back(search_pool_->push([&, i, p_id_ptr = p_id.get(), p_dist_ptr = p_dist.get()]() {
                 auto single_query = (const char*)xq + i * dim;
                 auto it =
-                    std::make_shared<iterator>(true, single_query, ef, p_dist_ptr,
-                    diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning, bitset);
+                    std::make_shared<iterator>(true, single_query, ef, diskann_cfg.beamwidth, 
+                    true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning, bitset);
                 it->initialize();
                 vec[i] = it;
             }));
@@ -176,14 +175,14 @@ class DiskANNIndexNode : public IndexNode {
  private:
     class iterator : public IndexIterator {
      public:
-        iterator(const bool transform, void *query_data, const _u64 ef, _s64 *indices,
+        iterator(const bool transform, void *query_data, const _u64 ef, 
       const _u64 beam_width, const bool use_reorder_data,
       const float filter_ratio_in, const bool for_tun,
       const knowhere::BitsetView &bitset):
       IndexIterator(transform),
       index_(pq_flash_index_),
       transform_(transform),
-      workspace_(index_->getIteratorWorkspace(query_data, ef, indices, 
+      workspace_(index_->getIteratorWorkspace(query_data, ef,
        beam_width, use_reorder_data, bitset)) {}
 
      protected:
