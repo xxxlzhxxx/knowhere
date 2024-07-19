@@ -155,7 +155,7 @@ struct config {
 };
 
 struct IteratorWorkspace {
-    IteratorWorkspace(const void* query_data, const _u64 ef, const bool for_tun, const _s64* idx, 
+    IteratorWorkspace(void* query_data, const _u64 ef, const bool for_tun, const _s64* idx, 
                       const knowhere::BitsetView& bt, const _u64 b_width, float alpha, 
                       const float filter_ratio_in, const bool use_reorder_data)
         : Config(query_data, ef, for_tun, idx, bt, b_width, filter_ratio_in, use_reorder_data),
