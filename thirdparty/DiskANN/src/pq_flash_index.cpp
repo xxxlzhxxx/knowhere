@@ -1597,6 +1597,50 @@ namespace diskann {
   void PQFlashIndex<T>::getIteratorNextBatch(IteratorWorkspace *workspace,
                                              size_t             res_size) {
 
+    if (workspace->Config.beam_width > MAX_N_SECTOR_READS)
+      throw ANNException(
+          "Beamwidth can not be higher than MAX_N_SECTOR_READS", -1,
+          __FUNCSIG__, __FILE__, __LINE__);
+
+    ThreadData<T> data = this->thread_data.pop();
+    while (data.scratch.sector_scratch == nullptr) {
+      this->thread_data.wait_for_push_notify();
+      data = this->thread_data.pop();
+    }
+
+    auto query_norm_opt =
+        init_thread_data(data, workspace->Config.query_data);
+
+    if (!query_norm_opt.has_value()) {
+      // return an empty answer when calcu a zero point
+      this->thread_data.push(data);
+      this->thread_data.push_notify_all();
+      return;
+    }
+    float query_norm = query_norm_opt.value();
+    auto  ctx = this->reader->get_ctx();
+
+    auto         query_scratch = &(data.scratch);
+    const T     *query = data.scratch.aligned_query_T;
+    const float *query_float = data.scratch.aligned_query_float;
+
+    // pointers to buffers for data
+    T *data_buf = query_scratch->coord_scratch;
+
+    // sector scratch
+    char *sector_scratch = query_scratch->sector_scratch;
+    _u64 &sector_scratch_idx = query_scratch->sector_idx;
+
+    // query <-> PQ chunk centers distances
+    float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
+    pq_table.populate_chunk_distances(query_float, pq_dists);
+
+    // query <-> neighbor list
+    float *dist_scratch = query_scratch->aligned_dist_scratch;
+    _u8   *pq_coord_scratch = query_scratch->aligned_pq_coord_scratch;
+
+    workspace->visited = *(query_scratch->visited);
+
     std::vector<unsigned> frontier;
     frontier.reserve(2 * workspace->Config.beam_width);
     std::vector<std::pair<unsigned, char *>> frontier_nhoods;
@@ -1619,50 +1663,6 @@ namespace diskann {
 
     if (!workspace->Config.initial_search_done) {
       // copy the initialization of cached_beam_search
-      if (workspace->Config.beam_width > MAX_N_SECTOR_READS)
-        throw ANNException(
-            "Beamwidth can not be higher than MAX_N_SECTOR_READS", -1,
-            __FUNCSIG__, __FILE__, __LINE__);
-
-      ThreadData<T> data = this->thread_data.pop();
-      while (data.scratch.sector_scratch == nullptr) {
-        this->thread_data.wait_for_push_notify();
-        data = this->thread_data.pop();
-      }
-
-      auto query_norm_opt =
-          init_thread_data(data, workspace->Config.query_data);
-
-      if (!query_norm_opt.has_value()) {
-        // return an empty answer when calcu a zero point
-        this->thread_data.push(data);
-        this->thread_data.push_notify_all();
-        return;
-      }
-      float query_norm = query_norm_opt.value();
-      auto  ctx = this->reader->get_ctx();
-
-      auto         query_scratch = &(data.scratch);
-      const T     *query = data.scratch.aligned_query_T;
-      const float *query_float = data.scratch.aligned_query_float;
-
-      // pointers to buffers for data
-      T *data_buf = query_scratch->coord_scratch;
-
-      // sector scratch
-      char *sector_scratch = query_scratch->sector_scratch;
-      _u64 &sector_scratch_idx = query_scratch->sector_idx;
-
-      // query <-> PQ chunk centers distances
-      float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
-      pq_table.populate_chunk_distances(query_float, pq_dists);
-
-      // query <-> neighbor list
-      float *dist_scratch = query_scratch->aligned_dist_scratch;
-      _u8   *pq_coord_scratch = query_scratch->aligned_pq_coord_scratch;
-
-      workspace->visited = *(query_scratch->visited);
-
       // Initial Search, find the entry point.
       _u32 best_medoid = 0;
       auto vec_hash = knowhere::hash_vec(query_float, data_dim);
