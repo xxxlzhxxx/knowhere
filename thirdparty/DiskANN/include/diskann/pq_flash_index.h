@@ -232,7 +232,7 @@ struct IteratorWorkspace {
 
     diskann::Metric get_metric() const noexcept;
 
-    void getIteratorNextBatch(IteratorWorkspace* workspace, size_t res_size);
+    void getIteratorNextBatch(IteratorWorkspace* workspace);
 
     
     std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(
