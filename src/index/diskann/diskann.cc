@@ -136,30 +136,28 @@ class DiskANNIndexNode : public IndexNode {
         return knowhere::IndexEnum::INDEX_DISKANN;
     }
 
-
     expected<std::vector<std::shared_ptr<IndexNode::iterator>>>
     AnnIterator(const DataSetPtr dataset, const Config& cfg, const BitsetView& bitset) const override {
-        if (pq_flash_index_ == nullptr){
+        if (pq_flash_index_ == nullptr) {
             LOG_KNOWHERE_WARNING_ << "creating iterator on empty index";
-            return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(Status::empty_index,                                                                        "index not loaded");
+            return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(Status::empty_index,
+                                                                                    "index not loaded");
         }
         auto nq = dataset->GetRows();
         auto dim = dataset->GetDim();
         auto xq = dataset->GetTensor();
         auto diskann_cfg = static_cast<const DiskANNConfig&>(cfg);
         auto ef = diskann_cfg.search_list_size;
-  
+
         std::vector<folly::Future<folly::Unit>> futs;
         futs.reserve(nq);
         auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
 
-
-        for (int i=0; i<nq; i++){
+        for (int i = 0; i < nq; i++) {
             futs.emplace_back(search_pool_->push([&, i]() {
                 auto single_query = (const char*)xq + i * dim;
-                auto it =
-                    std::make_shared<iterator>(true, single_query, ef, diskann_cfg.beamwidth, 
-                    true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning, bitset);
+                auto it = std::make_shared<iterator>(true, single_query, ef, diskann_cfg.beamwidth, true,
+                                                     diskann_cfg.filter_threshold, diskann_cfg.for_tuning, bitset);
                 it->initialize();
                 vec[i] = it;
             }));
@@ -169,19 +167,19 @@ class DiskANNIndexNode : public IndexNode {
         return vec;
     }
 
-
  private:
     class iterator : public IndexIterator {
      public:
-        iterator(const bool transform, void *query_data, const _u64 ef, 
-      const _u64 beam_width, const bool use_reorder_data,
-      const float filter_ratio_in, const bool for_tun,
-      const knowhere::BitsetView &bitset):
-      IndexIterator(transform),
-      index_(pq_flash_index_),
-      transform_(transform),
-      workspace_(index_->getIteratorWorkspace(query_data, ef,
-       beam_width, use_reorder_data, bitset)) {}
+        iterator(const bool transform, const char* query_data, const std::optional<int>& ef,
+                 const std::optional<int>& beam_width, const bool use_reorder_data,
+                 const std::optional<float>& filter_ratio_in, const std::optional<bool>& for_tun,
+                 const knowhere::BitsetView& bitset)
+            : IndexIterator(transform),
+              index_(pq_flash_index_),
+              transform_(transform),
+              workspace_(index_->getIteratorWorkspace(query_data, ef.value_or(0), beam_width.value_or(0),
+                                                      use_reorder_data, bitset)) {
+        }
 
      protected:
         void
@@ -198,7 +196,7 @@ class DiskANNIndexNode : public IndexNode {
 
         float
         raw_distance(int64_t id) override {
-           return 1;
+            return 1;
         }
 
      private:
@@ -206,7 +204,6 @@ class DiskANNIndexNode : public IndexNode {
         const bool transform_;
         std::unique_ptr<diskann::IteratorWorkspace> workspace_;
     };
-
 
     bool
     LoadFile(const std::string& filename) {
