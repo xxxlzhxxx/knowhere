@@ -179,7 +179,7 @@ class DiskANNIndexNode : public IndexNode {
               index_(index),
               transform_(transform),
               workspace_(index_->getIteratorWorkspace(query_data, ef.value_or(0), beam_width.value_or(0),
-                                                      use_reorder_data, bitset)) {
+                                                      use_reorder_data, filter_ratio_in, for_tun, bitset)) {
         }
 
      protected:
