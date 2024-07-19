@@ -155,7 +155,7 @@ class DiskANNIndexNode : public IndexNode {
 
         for (int i = 0; i < nq; i++) {
             futs.emplace_back(search_pool_->push([&, i]() {
-                auto single_query = (const char*)xq + i * dim;
+                auto single_query = (void*)xq + i * dim;
                 auto it = std::make_shared<iterator>(true, single_query, ef, diskann_cfg.beamwidth, true,
                                                      diskann_cfg.filter_threshold, diskann_cfg.for_tuning, 
                                                      bitset,  pq_flash_index_.get());
