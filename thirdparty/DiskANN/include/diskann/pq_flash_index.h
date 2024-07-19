@@ -131,12 +131,11 @@ namespace diskann {
 
 struct config {
     // 构造函数
-    config(void* query_data, const _u64 ef, const bool for_tun, const _s64* idx, 
+    config(void* query_data, const _u64 ef, const bool for_tun, 
            const knowhere::BitsetView& bt, 
            const _u64 b_width, const float filter_ratio_in, const bool use_reorder_data)
         : query_data(query_data),
           l_search(ef),
-          indices(idx),
           beam_width(b_width),
           use_reorder_data(use_reorder_data), // 使用传入的值
           bitset(bt),
@@ -146,7 +145,6 @@ struct config {
     bool initial_search_done = false;
     void* query_data;
     const _u64 l_search; // ef
-    const _s64* indices; // 索引数组
     const _u64 beam_width;
     const bool use_reorder_data; // 是否使用重排数据
     knowhere::BitsetView bitset;
@@ -155,10 +153,10 @@ struct config {
 };
 
 struct IteratorWorkspace {
-    IteratorWorkspace(void* query_data, const _u64 ef, const bool for_tun, const _s64* idx, 
+    IteratorWorkspace(void* query_data, const _u64 ef, const bool for_tun, 
                       const knowhere::BitsetView& bt, const _u64 b_width, float alpha, 
                       const float filter_ratio_in, const bool use_reorder_data)
-        : Config(query_data, ef, for_tun, idx, bt, b_width, filter_ratio_in, use_reorder_data),
+        : Config(query_data, ef, for_tun, bt, b_width, filter_ratio_in, use_reorder_data),
           accumulative_alpha(alpha), res(ef) {}
 
     float accumulative_alpha;
@@ -236,7 +234,7 @@ struct IteratorWorkspace {
 
     
     std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(
-      T *query_data, const _u64 ef, _s64 *indices, const _u64 beam_width,
+      T *query_data, const _u64 ef, const _u64 beam_width,
       const bool use_reorder_data, const float filter_ratio_in,
       const bool for_tun, const knowhere::BitsetView &bitset);
 
