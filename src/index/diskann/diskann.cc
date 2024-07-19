@@ -202,7 +202,7 @@ class DiskANNIndexNode : public IndexNode {
         }
 
      private:
-        const diskann::PQFlashIndex<DataType>* index_;
+        diskann::PQFlashIndex<DataType>* index_;
         const bool transform_;
         std::unique_ptr<diskann::IteratorWorkspace> workspace_;
     };
