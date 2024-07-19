@@ -1594,7 +1594,7 @@ namespace diskann {
   }
 
   template<typename T>
-  void PQFlashIndex<T>::getIteratorNextBatch(IteratorWorkspace *workspace) {
+  void PQFlashIndex<T>::getIteratorNextBatch(IteratorWorkspace *workspace) const {
 
     if (workspace->Config.beam_width > MAX_N_SECTOR_READS)
       throw ANNException(
