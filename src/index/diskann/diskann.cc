@@ -159,7 +159,7 @@ class DiskANNIndexNode : public IndexNode {
                 auto single_query = (const char*)xq + i * dim;
                 auto it =
                     std::make_shared<iterator>(true, single_query, ef, this->pq_flash_index_,
-                    diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning);
+                    diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning, bitset);
                 it->initialize();
                 vec[i] = it;
             }));
@@ -173,8 +173,8 @@ class DiskANNIndexNode : public IndexNode {
  private:
     class iterator : public IndexIterator {
      public:
-        iterator(const bool transform, void *query_data, const _u64 ef, const _u64 k, _s64 *indices,
-      float *distances, const _u64 beam_width, const bool use_reorder_data,
+        iterator(const bool transform, void *query_data, const _u64 ef, _s64 *indices,
+      const _u64 beam_width, const bool use_reorder_data,
       const float filter_ratio_in, const bool for_tun,
       const knowhere::BitsetView &bitset):
       IndexIterator(transform),
