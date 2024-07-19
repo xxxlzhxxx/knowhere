@@ -157,7 +157,8 @@ class DiskANNIndexNode : public IndexNode {
             futs.emplace_back(search_pool_->push([&, i]() {
                 auto single_query = (const char*)xq + i * dim;
                 auto it = std::make_shared<iterator>(true, single_query, ef, diskann_cfg.beamwidth, true,
-                                                     diskann_cfg.filter_threshold, diskann_cfg.for_tuning, bitset);
+                                                     diskann_cfg.filter_threshold, diskann_cfg.for_tuning, 
+                                                     bitset,  pq_flash_index_);
                 it->initialize();
                 vec[i] = it;
             }));
@@ -173,9 +174,9 @@ class DiskANNIndexNode : public IndexNode {
         iterator(const bool transform, const char* query_data, const std::optional<int>& ef,
                  const std::optional<int>& beam_width, const bool use_reorder_data,
                  const std::optional<float>& filter_ratio_in, const std::optional<bool>& for_tun,
-                 const knowhere::BitsetView& bitset)
+                 const knowhere::BitsetView& bitset, diskann::PQFlashIndex<DataType>* index)
             : IndexIterator(transform),
-              index_(pq_flash_index_),
+              index_(index),
               transform_(transform),
               workspace_(index_->getIteratorWorkspace(query_data, ef.value_or(0), beam_width.value_or(0),
                                                       use_reorder_data, bitset)) {
