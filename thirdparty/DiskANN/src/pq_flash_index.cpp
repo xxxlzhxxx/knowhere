@@ -1652,6 +1652,11 @@ namespace diskann {
                      dists_out);
     };
 
+
+
+
+
+
     if (!workspace->Config.initial_search_done) {
       // copy the initialization of cached_beam_search
       // Initial Search, find the entry point.
