@@ -144,6 +144,7 @@ class DiskANNIndexNode : public IndexNode {
             return expected<std::vector<std::shared_ptr<IndexNode::iterator>>>::Err(Status::empty_index,                                                                        "index not loaded");
         }
         auto nq = dataset->GetRows();
+        auto dim = dataset->GetDim();
         auto xq = dataset->GetTensor();
         auto diskann_cfg = static_cast<const DiskANNConfig&>(cfg);
         auto ef = diskann_cfg.search_list_size;
@@ -154,8 +155,8 @@ class DiskANNIndexNode : public IndexNode {
 
 
         for (int i=0; i<nq; i++){
-            futs.emplace_back(search_pool_->push([&, index = row]() {
-                auto single_query = (const char*)xq + i * index->data_size_;
+            futs.emplace_back(search_pool_->push([&, i]() {
+                auto single_query = (const char*)xq + i * dim;
                 auto it =
                     std::make_shared<iterator>(true, single_query, ef, this->pq_flash_index_,
                     diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning);
