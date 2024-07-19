@@ -154,11 +154,14 @@ class DiskANNIndexNode : public IndexNode {
         auto vec = std::vector<std::shared_ptr<IndexNode::iterator>>(nq, nullptr);
 
 
+        auto p_id = std::make_unique<int64_t[]>(k * nq);
+        auto p_dist = std::make_unique<DistType[]>(k * nq);
+
         for (int i=0; i<nq; i++){
-            futs.emplace_back(search_pool_->push([&, i]() {
+            futs.emplace_back(search_pool_->push([&, i, p_id_ptr = p_id.get(), p_dist_ptr = p_dist.get()]() {
                 auto single_query = (const char*)xq + i * dim;
                 auto it =
-                    std::make_shared<iterator>(true, single_query, ef, this->pq_flash_index_,
+                    std::make_shared<iterator>(true, single_query, ef, p_dist_ptr,
                     diskann_cfg.beamwidth, true, diskann_cfg.filter_threshold, diskann_cfg.for_tuning, bitset);
                 it->initialize();
                 vec[i] = it;
