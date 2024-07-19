@@ -131,7 +131,7 @@ namespace diskann {
 
 struct config {
     // 构造函数
-    config(const void* query_data, const _u64 ef, const bool for_tun, const _s64* idx, 
+    config(void* query_data, const _u64 ef, const bool for_tun, const _s64* idx, 
            const knowhere::BitsetView& bt, 
            const _u64 b_width, const float filter_ratio_in, const bool use_reorder_data)
         : query_data(query_data),
@@ -144,7 +144,7 @@ struct config {
           for_tuning(for_tun) {}
 
     bool initial_search_done = false;
-    const void* query_data;
+    void* query_data;
     const _u64 l_search; // ef
     const _s64* indices; // 索引数组
     const _u64 beam_width;
@@ -236,9 +236,9 @@ struct IteratorWorkspace {
 
     
     std::unique_ptr<IteratorWorkspace> getIteratorWorkspace(
-    const T* query_data, const _u64 ef, const _u64 k, _s64* indices,
-    float* distances, const _u64 beam_width, const bool use_reorder_data, 
-    const float filter_ratio_in, const bool for_tun, const knowhere::BitsetView& bitset);
+      const T *query_data, const _u64 ef, _s64 *indices, const _u64 beam_width,
+      const bool use_reorder_data, const float filter_ratio_in,
+      const bool for_tun, const knowhere::BitsetView &bitset);
 
 
     _u64 cal_size();
