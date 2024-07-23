@@ -1655,18 +1655,6 @@ namespace diskann {
 
 
     if (!workspace->Config.initial_search_done) {
-      // copy the initialization of cached_beam_search
-      // Initial Search, find the entry point.
-      //auto query_norm_opt =
-      //init_thread_data(data, workspace->Config.query_data);
-
-      //if (!query_norm_opt.has_value()) {
-      //  // return an empty answer when calcu a zero point
-      //  this->thread_data.push(data);
-      //  this->thread_data.push_notify_all();
-      //  return;
-      //}
-      //float query_norm = query_norm_opt.value();
 
       _u32 best_medoid = 0;
       auto vec_hash = knowhere::hash_vec(query_float, data_dim);
